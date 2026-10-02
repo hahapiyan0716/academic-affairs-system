@@ -1,0 +1,34 @@
+# 敏感資訊
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Node.js
+node_modules/
+dist/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Prisma 產生的 client
+services/auth-admin/src/generated/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# 編輯器／系統
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Log
+*.log
+npm-debug.log*
