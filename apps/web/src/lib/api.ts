@@ -1,0 +1,77 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+
+/** 整頁導向站內路徑（登入／登出需要讓 proxy 與 Server Component 以新的 cookie 重新判斷） */
+export function hardNavigate(path: string) {
+  window.location.assign(new URL(path, window.location.origin));
+}
+
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * 呼叫後端 API（同源，經 Next.js rewrites 轉發；cookie 由瀏覽器自動帶上）。
+ * 兩個後端的錯誤格式都統一為 { detail: string }。
+ */
+export async function api<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
+  const { json, ...rest } = init ?? {};
+  const res = await fetch(path, {
+    ...rest,
+    headers: json !== undefined ? { "Content-Type": "application/json", ...rest.headers } : rest.headers,
+    body: json !== undefined ? JSON.stringify(json) : rest.body,
+    credentials: "same-origin",
+  });
+
+  if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/api/auth/login")) {
+    // 登入失效：整頁重新載入登入頁，讓 proxy 與 Server Component 重新判斷狀態
+    hardNavigate("/login");
+  }
+  if (!res.ok) {
+    let detail = `請求失敗（${res.status}）`;
+    try {
+      const body = await res.json();
+      if (typeof body?.detail === "string") detail = body.detail;
+      else if (Array.isArray(body?.detail)) detail = body.detail.map((d: { msg: string }) => d.msg).join("；");
+    } catch {
+      /* 回應不是 JSON 時沿用預設訊息 */
+    }
+    throw new ApiError(res.status, detail);
+  }
+  return (res.status === 204 ? undefined : await res.json()) as T;
+}
+
+/** 簡易資料讀取 hook：回傳資料、錯誤、載入中狀態，以及重新讀取的函式 */
+export function useApi<T>(path: string | null) {
+  const [data, setData] = useState<T | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
+  // 記錄「最後完成的是哪一次請求」，載入中狀態由此推導，不需在 effect 內同步 setState
+  const [settledKey, setSettledKey] = useState<string | null>(null);
+  const key = path === null ? null : `${path}#${version}`;
+
+  useEffect(() => {
+    if (path === null || key === null) return;
+    let cancelled = false;
+    api<T>(path)
+      .then((d) => {
+        if (cancelled) return;
+        setData(d);
+        setError(null);
+      })
+      .catch((e: Error) => !cancelled && setError(e.message))
+      .finally(() => !cancelled && setSettledKey(key));
+    return () => {
+      cancelled = true;
+    };
+  }, [path, key]);
+
+  const reload = useCallback(() => setVersion((v) => v + 1), []);
+  return { data, error, loading: key !== null && settledKey !== key, reload };
+}
