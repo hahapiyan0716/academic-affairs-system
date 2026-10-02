@@ -8,4 +8,5 @@ pydantic-settings==2.15.0
 
 # 測試
 pytest==9.1.1
-httpx==0.28.1
+# Starlette 的 TestClient 新版改用 httpx2（舊的 httpx 會出現 deprecation 警告）
+httpx2==2.13.1

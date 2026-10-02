@@ -25,7 +25,7 @@
 
 ## 本機啟動
 
-需求：Node.js 20+、Python 3.12+、MySQL 8.0。
+需求：Node.js 20+、Python 3.12（以 conda 管理環境）、MySQL 8.0。
 
 ### 1. 建立資料庫與專用帳號（以 root 執行一次）
 
@@ -59,11 +59,11 @@ npm install
 npx prisma generate
 npm run db:reset          # 套用 migration 並寫入種子資料
 
-# FastAPI
+# FastAPI（conda 環境）
 cd ../academic
-python -m venv .venv
-.venv\Scripts\activate    # macOS / Linux：source .venv/bin/activate
-pip install -r requirements.txt
+conda create -n academic_system python=3.12   # 只需建立一次
+conda activate academic_system
+pip install -r requirements.txt               # 依賴皆來自 PyPI，因此用 pip 安裝
 
 # Next.js
 cd ../../apps/web
@@ -74,7 +74,7 @@ npm install
 
 ```bash
 cd services/auth-admin && npm run dev
-cd services/academic   && .venv\Scripts\uvicorn app.main:app --reload --port 8000
+cd services/academic   && conda activate academic_system && uvicorn app.main:app --reload --port 8000
 cd apps/web            && npm run dev
 ```
 
@@ -96,7 +96,7 @@ cd apps/web            && npm run dev
 
 ```bash
 cd services/auth-admin && npm test                    # vitest + supertest，9 項
-cd services/academic   && .venv\Scripts\python -m pytest  # pytest，17 項（含併發搶課）
+cd services/academic   && conda activate academic_system && pytest   # pytest，17 項（含併發搶課）
 ```
 
 測試連線至 `.env` 設定的資料庫：Express 測試會還原其變更；FastAPI 測試只在專用的測試學期 `9991` 中建立與刪除資料。
