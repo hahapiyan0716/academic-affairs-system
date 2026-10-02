@@ -1,0 +1,310 @@
+// =====================================================================
+// 輕量化教務管理系統 — 資料庫 Schema（唯一來源 Single Source of Truth）
+//
+// 由原 3nf_table.sql 延伸重構而來，主要差異：
+//   1. Course 拆為「課程庫 Course」與「學期開課班級 Section」
+//   2. 時段、授課教師、選課紀錄改掛在 Section 上（才能保存歷年資料）
+//   3. 新增帳號、學期、開課權限稽核、成績修改稽核
+//
+// 命名慣例：資料表沿用原檔的 PascalCase、欄位沿用 snake_case，
+// 讓 Prisma、SQLAlchemy 與手寫 SQL 看到的名稱完全一致。
+//
+// Prisma 無法表達的 CHECK 約束與 View，寫在 migrations/*_init/migration.sql 末尾。
+// =====================================================================
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// ---------------------------------------------------------------------
+// 列舉
+// ---------------------------------------------------------------------
+
+enum Role {
+  Admin
+  Teacher
+  Student
+}
+
+/// 學籍狀態：在學、休學、退學
+enum StudentStatus {
+  Enrolled
+  Suspended
+  Dropped
+}
+
+enum CourseType {
+  Required
+  Elective
+}
+
+/// 學期狀態：規劃中（可開課）→ 選課中（可開課、可加退選）→ 上課中（可登分）→ 已結束（可登分、唯讀查詢）
+enum SemesterStatus {
+  Planning
+  Enrolling
+  InProgress
+  Finished
+}
+
+enum SectionStatus {
+  Open
+  Cancelled
+}
+
+/// 選課狀態
+///   Registered  ：已登記、待分發（預留給未來的「登記 + 隨機分發」機制）
+///   Selected    ：中選（先搶先贏模式下加選成功即為此狀態）
+///   Manual      ：人工加選
+///   NotSelected ：落選（對應原資料的 'Dropped'）
+///   Withdrawn   ：學生自行退選
+enum EnrollmentStatus {
+  Registered
+  Selected
+  Manual
+  NotSelected
+  Withdrawn
+}
+
+// ---------------------------------------------------------------------
+// 帳號與身分
+// ---------------------------------------------------------------------
+
+/// 系統登入帳號；Teacher / Student 透過 user_id 與帳號一對一連結，Admin 無對應檔案
+model UserAccount {
+  user_id       Int       @id @default(autoincrement())
+  username      String    @unique @db.VarChar(30)
+  password_hash String    @db.VarChar(100)
+  role          Role
+  is_active     Boolean   @default(true)
+  created_at    DateTime  @default(now()) @db.DateTime(0)
+  last_login_at DateTime? @db.DateTime(0)
+
+  teacher            Teacher?
+  student            Student?
+  permission_changes TeacherPermissionLog[]
+  score_changes      ScoreChangeLog[]
+}
+
+model Department {
+  dept_id   String @id @db.Char(4)
+  dept_name String @unique @db.VarChar(50)
+
+  students Student[]
+  teachers Teacher[]
+  courses  Course[]
+}
+
+model Teacher {
+  teacher_id       String  @id @db.Char(6)
+  /// 原設計為 UNIQUE，實務上教師姓名可能重複，故移除
+  teacher_name     String  @db.VarChar(50)
+  dept_id          String? @db.Char(4)
+  /// 開課權限：由管理員指派／收回，只有 true 的教師可新增開課班級
+  can_open_section Boolean @default(false)
+  user_id          Int?    @unique
+
+  department       Department?            @relation(fields: [dept_id], references: [dept_id])
+  user             UserAccount?           @relation(fields: [user_id], references: [user_id])
+  section_links    SectionTeacher[]
+  created_sections Section[]
+  permission_logs  TeacherPermissionLog[]
+}
+
+/// 開課權限切換的稽核紀錄（誰、何時、授予或收回）
+model TeacherPermissionLog {
+  log_id     Int      @id @default(autoincrement())
+  teacher_id String   @db.Char(6)
+  granted    Boolean
+  changed_by Int
+  changed_at DateTime @default(now()) @db.DateTime(0)
+
+  teacher Teacher     @relation(fields: [teacher_id], references: [teacher_id])
+  admin   UserAccount @relation(fields: [changed_by], references: [user_id])
+
+  @@index([teacher_id, changed_at])
+}
+
+model Student {
+  student_id   String        @id @db.Char(10)
+  student_name String        @db.VarChar(30)
+  dept_id      String        @db.Char(4)
+  grade        Int           @db.TinyInt
+  status       StudentStatus
+  class_code   String        @db.Char(2)
+  /// 0 = 大學部、1 = 碩博班（影響及格標準：60 / 70）
+  degree       Int           @default(0) @db.TinyInt
+  user_id      Int?          @unique
+
+  department  Department   @relation(fields: [dept_id], references: [dept_id])
+  user        UserAccount? @relation(fields: [user_id], references: [user_id])
+  enrollments Enrollment[]
+}
+
+// ---------------------------------------------------------------------
+// 校園空間
+// ---------------------------------------------------------------------
+
+model Building {
+  building_id   String @id @db.Char(4)
+  building_name String @unique @db.VarChar(50)
+
+  rooms Room[]
+}
+
+model Room {
+  room_code     String @id @db.VarChar(10)
+  building_id   String @db.Char(4)
+  seat_capacity Int?   @db.SmallInt
+
+  building  Building          @relation(fields: [building_id], references: [building_id])
+  schedules SectionSchedule[]
+}
+
+// ---------------------------------------------------------------------
+// 課程庫（跨學期不變的資訊）
+// ---------------------------------------------------------------------
+
+model Course {
+  course_no   String     @id @db.Char(5)
+  course_name String     @db.VarChar(50)
+  course_type CourseType
+  credit      Int        @db.TinyInt
+  dept_id     String?    @db.Char(4)
+  /// 停用的課程不可再開新班，但歷史班級仍保留
+  is_active   Boolean    @default(true)
+
+  department Department?       @relation(fields: [dept_id], references: [dept_id])
+  fields     CurriculumField[]
+  sections   Section[]
+}
+
+model CurriculumField {
+  course_no  String @db.Char(5)
+  field_name String @db.VarChar(50)
+
+  course Course @relation(fields: [course_no], references: [course_no], onDelete: Cascade)
+
+  @@id([course_no, field_name])
+}
+
+// ---------------------------------------------------------------------
+// 學期與開課班級
+// ---------------------------------------------------------------------
+
+model Semester {
+  /// 民國學年 + 學期，例如 '1132' = 113 學年度第 2 學期
+  semester_id String         @id @db.Char(4)
+  acad_year   Int            @db.SmallInt
+  term        Int            @db.TinyInt
+  status      SemesterStatus @default(Planning)
+  /// 「目前學期」，同一時間僅允許一筆為 true（由應用層在交易中維護）
+  is_current  Boolean        @default(false)
+
+  sections Section[]
+
+  @@unique([acad_year, term])
+}
+
+/// 開課班級：某門課在某學期的一次開設
+model Section {
+  section_id   Int           @id @default(autoincrement())
+  course_no    String        @db.Char(5)
+  semester_id  String        @db.Char(4)
+  section_code String        @default("01") @db.Char(2)
+  capacity     Int           @db.SmallInt
+  status       SectionStatus @default(Open)
+  /// 由哪位教師建立（系統匯入的歷史資料可為 NULL）
+  created_by   String?       @db.Char(6)
+  created_at   DateTime      @default(now()) @db.DateTime(0)
+
+  course      Course            @relation(fields: [course_no], references: [course_no])
+  semester    Semester          @relation(fields: [semester_id], references: [semester_id])
+  creator     Teacher?          @relation(fields: [created_by], references: [teacher_id])
+  teachers    SectionTeacher[]
+  schedules   SectionSchedule[]
+  enrollments Enrollment[]
+
+  @@unique([course_no, semester_id, section_code])
+  /// 供 SectionSchedule 的複合外鍵參照，確保時段的 semester_id 與班級一致
+  @@unique([section_id, semester_id])
+  @@index([semester_id, status])
+}
+
+/// 開課班級與授課教師的多對多關係（一班可多位教師合授）
+model SectionTeacher {
+  section_id Int
+  teacher_id String  @db.Char(6)
+  is_primary Boolean @default(true)
+
+  section Section @relation(fields: [section_id], references: [section_id], onDelete: Cascade)
+  teacher Teacher @relation(fields: [teacher_id], references: [teacher_id])
+
+  @@id([section_id, teacher_id])
+  @@index([teacher_id])
+}
+
+/// 單一上課時段；原 time_slot '一5' 拆為 weekday = 1、period = 5
+model SectionSchedule {
+  schedule_id Int    @id @default(autoincrement())
+  section_id  Int
+  /// 刻意冗餘的學期欄位，透過複合外鍵 (section_id, semester_id) 保證與班級一致，
+  /// 目的是讓下方的 UNIQUE 可以在資料庫層防止「同學期同教室同時段」重複借用
+  semester_id String @db.Char(4)
+  room_code   String @db.VarChar(10)
+  /// 1 = 星期一 … 7 = 星期日
+  weekday     Int    @db.TinyInt
+  /// 節次
+  period      Int    @db.TinyInt
+
+  section Section @relation(fields: [section_id, semester_id], references: [section_id, semester_id], onDelete: Cascade)
+  room    Room    @relation(fields: [room_code], references: [room_code])
+
+  @@unique([section_id, weekday, period])
+  @@unique([semester_id, room_code, weekday, period], map: "uq_room_timeslot")
+  @@index([room_code])
+}
+
+// ---------------------------------------------------------------------
+// 選課與成績
+// ---------------------------------------------------------------------
+
+/// 取代原 CourseSelection；學期資訊由 section 推得，不再重複儲存
+model Enrollment {
+  student_id    String           @db.Char(10)
+  section_id    Int
+  status        EnrollmentStatus
+  score         Decimal?         @db.Decimal(4, 1)
+  /// 教學評量（1–10）
+  feedback_rank Int?             @db.TinyInt
+  enrolled_at   DateTime         @default(now()) @db.DateTime(0)
+  updated_at    DateTime         @default(now()) @updatedAt @db.DateTime(0)
+
+  student       Student          @relation(fields: [student_id], references: [student_id])
+  section       Section          @relation(fields: [section_id], references: [section_id])
+  score_changes ScoreChangeLog[]
+
+  @@id([student_id, section_id])
+  @@index([section_id, status])
+}
+
+/// 成績修改稽核紀錄
+model ScoreChangeLog {
+  log_id     Int      @id @default(autoincrement())
+  student_id String   @db.Char(10)
+  section_id Int
+  old_score  Decimal? @db.Decimal(4, 1)
+  new_score  Decimal? @db.Decimal(4, 1)
+  changed_by Int
+  changed_at DateTime @default(now()) @db.DateTime(0)
+
+  enrollment Enrollment  @relation(fields: [student_id, section_id], references: [student_id, section_id])
+  changer    UserAccount @relation(fields: [changed_by], references: [user_id])
+
+  @@index([student_id, section_id])
+}

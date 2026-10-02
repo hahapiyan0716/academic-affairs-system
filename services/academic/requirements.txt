@@ -1,0 +1,11 @@
+fastapi[standard]==0.142.2
+SQLAlchemy==2.1.2
+PyMySQL==1.2.3
+# PyMySQL 連 MySQL 8 預設驗證方式 caching_sha2_password 時需要
+cryptography==50.0.2
+PyJWT==2.15.1
+pydantic-settings==2.15.0
+
+# 測試
+pytest==9.1.1
+httpx==0.28.1
