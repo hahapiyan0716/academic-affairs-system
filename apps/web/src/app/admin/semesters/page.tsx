@@ -91,7 +91,7 @@ export default function SemestersPage() {
                       {semesterLabel(s.semester_id)}
                       <span className="ml-2 font-mono text-xs text-muted-foreground">{s.semester_id}</span>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{s._count?.sections ?? 0}</TableCell>
+                    <TableCell className="text-right tabular-nums">{s.section_count ?? 0}</TableCell>
                     <TableCell>
                       <Select
                         value={s.status}

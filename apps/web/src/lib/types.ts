@@ -1,4 +1,4 @@
-// 前後端共用的資料型別（對應 Express 與 FastAPI 的回應格式）
+// 前後端共用的資料型別（對應 FastAPI 的回應格式，見 services/api/app/schemas*.py）
 
 export type Role = "Admin" | "Teacher" | "Student";
 
@@ -19,7 +19,8 @@ export interface Semester {
   term: number;
   status: SemesterStatus;
   is_current: boolean;
-  _count?: { sections: number };
+  /** 只有管理員 API（/api/admin/semesters、/api/admin/stats）會回傳 */
+  section_count?: number;
 }
 
 export interface Section {
@@ -133,7 +134,7 @@ export interface AdminTeacher {
   dept_id: string | null;
   can_open_section: boolean;
   user: { username: string; is_active: boolean } | null;
-  permission_logs: { changed_at: string; granted: boolean; admin: { username: string } }[];
+  latest_log: { log_id: number; changed_at: string; granted: boolean; admin: { username: string } } | null;
 }
 
 export interface AdminCourse {
@@ -142,10 +143,10 @@ export interface AdminCourse {
   course_type: "Required" | "Elective";
   credit: number;
   dept_id: string | null;
+  dept_name: string | null;
   is_active: boolean;
-  fields: { field_name: string }[];
-  department: { dept_name: string } | null;
-  _count: { sections: number };
+  fields: string[];
+  section_count: number;
 }
 
 export interface Department {

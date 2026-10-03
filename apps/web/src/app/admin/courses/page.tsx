@@ -84,12 +84,12 @@ export default function CoursesPage() {
                     <TableCell className="text-right tabular-nums">{c.credit}</TableCell>
                     <TableCell className="space-x-1">
                       {c.fields.map((f) => (
-                        <Badge key={f.field_name} variant="outline">
-                          {f.field_name}
+                        <Badge key={f} variant="outline">
+                          {f}
                         </Badge>
                       ))}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{c._count.sections}</TableCell>
+                    <TableCell className="text-right tabular-nums">{c.section_count}</TableCell>
                     <TableCell className="text-right">
                       <Switch checked={c.is_active} onCheckedChange={() => toggleActive(c)} />
                     </TableCell>
@@ -135,7 +135,7 @@ function CourseDialog({
           course_name: course.course_name,
           course_type: course.course_type,
           credit: String(course.credit),
-          fields: course.fields.map((f) => f.field_name).join("、"),
+          fields: course.fields.join("、"),
         }
       : EMPTY,
   );
