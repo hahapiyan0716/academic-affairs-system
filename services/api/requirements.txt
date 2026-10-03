@@ -5,6 +5,10 @@ PyMySQL==1.2.3
 cryptography==50.0.2
 PyJWT==2.15.1
 pydantic-settings==2.15.0
+# 密碼雜湊（5.x 對超過 72 bytes 的密碼會拋出例外，見 app/security.py）
+bcrypt==5.0.0
+# 資料庫 migration
+alembic==1.20.0
 
 # 測試
 pytest==9.1.1

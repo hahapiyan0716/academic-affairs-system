@@ -13,9 +13,6 @@ out/
 *.tsbuildinfo
 next-env.d.ts
 
-# Prisma 產生的 client
-services/auth-admin/src/generated/
-
 # Python
 __pycache__/
 *.py[cod]

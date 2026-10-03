@@ -6,9 +6,7 @@
 """
 
 from collections.abc import Callable, Iterator
-from datetime import UTC, datetime, timedelta
 
-import jwt
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select, text
@@ -16,6 +14,8 @@ from sqlalchemy import delete, select, text
 from app.config import get_settings
 from app.db import SessionLocal
 from app.main import app
+from app.rate_limit import login_limiter
+from app.security import CurrentUser, create_token
 from app.models import (
     Enrollment,
     ScoreChangeLog,
@@ -94,19 +94,22 @@ def _user_id(username: str) -> int:
 
 
 def make_token(username: str, role: str, *, teacher_id: str | None = None, student_id: str | None = None) -> str:
-    """模擬 Express 簽發的 JWT（相同 secret、issuer、演算法）"""
-    settings = get_settings()
-    payload = {
-        "sub": str(_user_id(username)),
-        "username": username,
-        "role": role,
-        "name": username,
-        "teacher_id": teacher_id,
-        "student_id": student_id,
-        "iss": settings.jwt_issuer,
-        "exp": datetime.now(UTC) + timedelta(minutes=10),
-    }
-    return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
+    """以正式程式碼的 create_token 簽發 JWT，省去每個測試都走一次登入流程"""
+    user = CurrentUser(
+        user_id=_user_id(username),
+        username=username,
+        role=role,  # type: ignore[arg-type]
+        name=username,
+        teacher_id=teacher_id,
+        student_id=student_id,
+    )
+    return create_token(user)
+
+
+@pytest.fixture(autouse=True)
+def _reset_login_limiter() -> None:
+    """登入限流的計數存在記憶體中，每個測試前清空，避免測試之間互相影響"""
+    login_limiter.reset()
 
 
 @pytest.fixture
