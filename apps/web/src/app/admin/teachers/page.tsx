@@ -52,7 +52,7 @@ export default function TeacherPermissionPage() {
               </TableHeader>
               <TableBody>
                 {data?.map((t) => {
-                  const log = t.permission_logs[0];
+                  const log = t.latest_log;
                   return (
                     <TableRow key={t.teacher_id}>
                       <TableCell className="font-mono">{t.teacher_id}</TableCell>

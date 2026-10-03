@@ -57,7 +57,7 @@ export default function AdminDashboard() {
               <span className="font-medium">{semesterLabel(data.current_semester.semester_id)}</span>
               <SemesterStatusBadge status={data.current_semester.status} />
               <span className="text-muted-foreground">
-                已開 {data.current_semester._count?.sections ?? 0} 個班級
+                已開 {data.current_semester.section_count ?? 0} 個班級
               </span>
             </div>
           ) : (
