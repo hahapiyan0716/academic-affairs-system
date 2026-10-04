@@ -11,12 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api, useApi } from "@/lib/api";
-import { WEEKDAYS, semesterLabel } from "@/lib/labels";
-import { cn } from "@/lib/utils";
+import { semesterLabel } from "@/lib/labels";
 import type { CourseBrief, Room, Section, Semester } from "@/types";
-
-const PERIODS = Array.from({ length: 10 }, (_, i) => i + 1);
-const DAYS = [1, 2, 3, 4, 5, 6];
+import SlotGrid from "./slot-grid";
 
 export default function NewSectionPage() {
   const router = useRouter();
@@ -193,47 +190,7 @@ export default function NewSectionPage() {
             <CardDescription>點選格子選擇時段（已選 {slots.size} 節）</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr>
-                    <th className="w-10 p-1 text-muted-foreground">節</th>
-                    {DAYS.map((d) => (
-                      <th key={d} className="p-1 font-medium">
-                        {WEEKDAYS[d - 1]}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {PERIODS.map((p) => (
-                    <tr key={p}>
-                      <td className="p-1 text-center text-muted-foreground tabular-nums">{p}</td>
-                      {DAYS.map((d) => {
-                        const key = `${d}-${p}`;
-                        const on = slots.has(key);
-                        return (
-                          <td key={key} className="p-0.5">
-                            <button
-                              type="button"
-                              onClick={() => toggleSlot(key)}
-                              aria-pressed={on}
-                              aria-label={`星期${WEEKDAYS[d - 1]}第 ${p} 節`}
-                              className={cn(
-                                "h-8 w-full rounded border transition-colors",
-                                on ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted",
-                              )}
-                            >
-                              {on ? "✓" : ""}
-                            </button>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <SlotGrid selected={slots} onToggle={toggleSlot} />
             <Button type="submit" className="mt-4 w-full" disabled={submitting}>
               建立開課班級
             </Button>

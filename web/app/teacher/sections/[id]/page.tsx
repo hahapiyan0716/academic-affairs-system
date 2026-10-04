@@ -16,18 +16,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, useApi } from "@/lib/api";
 import { compactSchedule, semesterLabel } from "@/lib/labels";
 import type { Roster } from "@/types";
+import SectionSettings from "./section-settings";
 
 export default function SectionRosterPage() {
   const { id } = useParams<{ id: string }>();
   const { data, error, loading, reload } = useApi<Roster>(`/api/teacher/sections/${id}/roster`);
   // 只記錄使用者修改過的欄位；未修改者顯示伺服器上的值
   const [edits, setEdits] = useState<Record<string, string>>({});
-  const [capacityEdit, setCapacityEdit] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   if (loading && !data) return <LoadingState />;
@@ -38,7 +37,6 @@ export default function SectionRosterPage() {
   const scoreOf = (sid: string, original: string | null) => edits[sid] ?? original ?? "";
   const scores = Object.fromEntries(students.map((s) => [s.student_id, scoreOf(s.student_id, s.score)]));
   const dirty = students.filter((s) => (s.score ?? "") !== scores[s.student_id]);
-  const capacity = capacityEdit ?? String(section.capacity);
 
   async function saveGrades() {
     const invalid = dirty.find((s) => {
@@ -67,17 +65,6 @@ export default function SectionRosterPage() {
     }
   }
 
-  async function patchSection(body: object, msg: string) {
-    try {
-      await api(`/api/teacher/sections/${id}`, { method: "PATCH", json: body });
-      toast.success(msg);
-      setCapacityEdit(null);
-      reload();
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  }
-
   return (
     <>
       <Button variant="ghost" size="sm" asChild className="mb-2 -ml-2">
@@ -93,41 +80,7 @@ export default function SectionRosterPage() {
         <SemesterStatusBadge status={data.semester_status} />
       </PageHeader>
 
-      {editable && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-base">班級設定</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-wrap items-end gap-3">
-            <div className="grid gap-1.5">
-              <Label>人數上限（目前已選 {section.enrolled_count} 人）</Label>
-              <Input
-                type="number"
-                className="w-32"
-                min={section.enrolled_count || 1}
-                value={capacity}
-                onChange={(e) => setCapacityEdit(e.target.value)}
-              />
-            </div>
-            <Button variant="outline" onClick={() => patchSection({ capacity: Number(capacity) }, "人數上限已更新")}>
-              更新上限
-            </Button>
-            <Button
-              variant="destructive"
-              className="ml-auto"
-              disabled={section.enrolled_count > 0}
-              title={section.enrolled_count > 0 ? "已有學生選修，不可停開" : undefined}
-              onClick={() => {
-                if (confirm("確定停開此班級？停開後無法恢復，教室時段會被釋放。")) {
-                  patchSection({ status: "Cancelled" }, "班級已停開");
-                }
-              }}
-            >
-              停開班級
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      {editable && <SectionSettings section={section} onChanged={reload} />}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

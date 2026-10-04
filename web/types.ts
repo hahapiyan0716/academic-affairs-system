@@ -1,4 +1,4 @@
-// 前後端共用的資料型別（對應 FastAPI 的回應格式，見 services/api/app/schemas*.py）
+// 前後端共用的資料型別（對應 FastAPI 的回應格式，見 api/app/schemas/）
 
 export type Role = "Admin" | "Teacher" | "Student";
 
