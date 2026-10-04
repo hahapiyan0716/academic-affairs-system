@@ -2,7 +2,7 @@
 -- 教務系統 SQL 操作範例
 --
 -- 對應系統中各功能背後的查詢，可直接執行：
---   mysql -u academic_app -p academic_db < database/sql-examples.sql
+--   mysql -u academic_app -p academic_db < api/database/sql-examples.sql
 --
 -- 所有會修改資料的範例都包在交易內並以 ROLLBACK 結尾，不會改動資料。
 -- 註：Windows 版 MySQL 預設 lower_case_table_names=1，表名不分大小寫；
@@ -151,7 +151,7 @@ ORDER BY periods_used DESC, r.room_code;
 
 
 -- ---------------------------------------------------------------------
--- 9. 交易 + 悲觀鎖：先搶先贏加選（FastAPI app/services/enrollment.py 的 SQL 版）
+-- 9. 交易 + 悲觀鎖：先搶先贏加選（api/app/services/enrollment_service.py 的 SQL 版）
 --    S004 加選 section 16（演算法，上限 3、已選 2）
 -- ---------------------------------------------------------------------
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;

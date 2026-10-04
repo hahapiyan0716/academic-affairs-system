@@ -12,7 +12,7 @@ engine = create_engine(
     # 使用 READ COMMITTED 而非 InnoDB 預設的 REPEATABLE READ：
     # RR 下的一般 SELECT 讀的是交易內第一次讀取時的快照，若快照早於取得 FOR UPDATE 鎖的時間點，
     # 計算選課人數時會看不到別人剛 commit 的紀錄而超收。RC 每次讀取都看到最新已 commit 的資料，
-    # 正確性則由 SELECT ... FOR UPDATE 的列鎖保證（見 app/services/enrollment.py）。
+    # 正確性則由 SELECT ... FOR UPDATE 的列鎖保證（見 app/services/enrollment_service.py）。
     isolation_level="READ COMMITTED",
 )
 

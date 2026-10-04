@@ -3,12 +3,12 @@
 import threading
 
 import pytest
-from fastapi import HTTPException
 from sqlalchemy import func, select
 
 from app.db import SessionLocal
 from app.models import ACTIVE_ENROLLMENT, Enrollment, SemesterStatus
-from app.services.enrollment import enroll
+from app.errors import AppError
+from app.services.enrollment_service import enroll
 
 
 def test_enroll_then_withdraw(make_section, client_as):
@@ -115,8 +115,8 @@ def test_concurrent_enrollment_never_oversells(make_section, round_):
             try:
                 enroll(db, student_id, sid)
                 results[student_id] = "ok"
-            except HTTPException as exc:
-                results[student_id] = exc.detail
+            except AppError as exc:
+                results[student_id] = exc.message
 
     threads = [threading.Thread(target=worker, args=(s,)) for s in students]
     for t in threads:

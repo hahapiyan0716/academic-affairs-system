@@ -9,7 +9,9 @@ import threading
 import time
 from collections import defaultdict, deque
 
-from fastapi import HTTPException, Request, status
+from fastapi import Request
+
+from app.errors import TooManyRequestsError
 
 LOOPBACK = {"127.0.0.1", "::1", "localhost"}
 
@@ -41,11 +43,7 @@ class RateLimiter:
                 hits.popleft()
             if len(hits) >= self.limit:
                 retry_after = int(self.window - (now - hits[0])) + 1
-                raise HTTPException(
-                    status.HTTP_429_TOO_MANY_REQUESTS,
-                    "登入嘗試次數過多，請稍後再試",
-                    headers={"Retry-After": str(retry_after)},
-                )
+                raise TooManyRequestsError("登入嘗試次數過多，請稍後再試", retry_after)
             hits.append(now)
 
     def reset(self) -> None:

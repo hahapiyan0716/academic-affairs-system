@@ -1,6 +1,6 @@
 -- 由 Alembic 離線模式產生的完整建表 SQL（閱讀與對照用，不需手動執行）
--- 產生方式：在 services/api 下執行 alembic upgrade head --sql
--- 資料庫結構的唯一來源是 services/api/app/models.py
+-- 產生方式：在 api/ 下執行 alembic upgrade head --sql
+-- 資料庫結構的唯一來源是 api/app/models.py
 
 CREATE TABLE alembic_version (
     version_num VARCHAR(32) NOT NULL, 

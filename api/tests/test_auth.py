@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.config import get_settings
 from app.main import app
-from app.rate_limit import login_limiter
+from app.middleware.rate_limit import login_limiter
 
 PASSWORD = get_settings().seed_password
 

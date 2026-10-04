@@ -1,7 +1,7 @@
 """
 種子資料：先執行 seed.sql 匯入業務資料，再以 bcrypt 建立登入帳號並與教師／學生連結。
 
-用法（在 services/api 目錄下）：
+用法（在 api/ 目錄下）：
   python -m seed            在「已建表、但沒有資料」的資料庫上寫入種子資料
   python -m seed --reset    清空資料庫（alembic downgrade base）→ 重建（upgrade head）→ 寫入種子資料
 """
@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import engine
 from app.models import Role, Student, Teacher, TeacherPermissionLog, UserAccount
-from app.security import hash_password
+from app.services.auth_service import hash_password
 
 SERVICE_DIR = Path(__file__).resolve().parent.parent
 SEED_SQL = Path(__file__).resolve().parent / "seed.sql"

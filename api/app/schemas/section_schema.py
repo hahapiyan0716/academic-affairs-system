@@ -1,33 +1,10 @@
-"""Pydantic v2 請求／回應模型"""
+"""開課班級、修課名單、登分"""
 
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 
-
-class ORMModel(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-
-class SemesterOut(ORMModel):
-    semester_id: str
-    acad_year: int
-    term: int
-    status: str
-    is_current: bool
-
-
-class RoomOut(BaseModel):
-    room_code: str
-    building_name: str
-    seat_capacity: int | None
-
-
-class CourseOut(ORMModel):
-    course_no: str
-    course_name: str
-    course_type: str
-    credit: int
+from app.schemas.base import ORMModel
 
 
 class SectionOut(ORMModel):
@@ -50,6 +27,10 @@ class SectionOut(ORMModel):
 class BrowseSectionOut(SectionOut):
     my_status: str | None = None  # 目前學生對此班的選課狀態
     conflict: bool = False  # 是否與學生已選課程衝堂
+
+
+class HistorySectionOut(SectionOut):
+    avg_score: Decimal | None  # 有效選課者的平均成績（四捨五入到小數 1 位）
 
 
 # ---------------------------------------------------------------------
@@ -101,6 +82,13 @@ class RosterEntry(BaseModel):
     feedback_rank: int | None
 
 
+class RosterOut(BaseModel):
+    section: SectionOut
+    semester_status: str
+    gradable: bool
+    students: list[RosterEntry]
+
+
 class GradeIn(BaseModel):
     student_id: str
     score: Decimal | None = Field(default=None, ge=0, le=100, max_digits=4, decimal_places=1)
@@ -113,60 +101,3 @@ class GradesUpdate(BaseModel):
 class GradesResult(BaseModel):
     updated: int
     unchanged: int
-
-
-# ---------------------------------------------------------------------
-# 學生：選課、課表、成績
-# ---------------------------------------------------------------------
-
-
-class EnrollIn(BaseModel):
-    section_id: int
-
-
-class EnrollmentOut(BaseModel):
-    student_id: str
-    section_id: int
-    status: str
-
-
-class TimetableSlot(BaseModel):
-    weekday: int
-    period: int
-    room_code: str
-    section_id: int
-    course_no: str
-    course_name: str
-
-
-class TimetableOut(BaseModel):
-    semester_id: str
-    total_credits: int
-    sections: list[SectionOut]
-    slots: list[TimetableSlot]
-
-
-class TranscriptRow(ORMModel):
-    semester_id: str
-    section_id: int
-    course_no: str
-    course_name: str
-    course_type: str
-    credit: int
-    status: str
-    score: Decimal | None
-    passed: int | None
-
-
-class TranscriptSemester(BaseModel):
-    semester_id: str
-    rows: list[TranscriptRow]
-    credits_taken: int
-    credits_earned: int
-    average: Decimal | None  # 學分加權平均
-
-
-class TranscriptOut(BaseModel):
-    semesters: list[TranscriptSemester]
-    total_credits_earned: int
-    overall_average: Decimal | None

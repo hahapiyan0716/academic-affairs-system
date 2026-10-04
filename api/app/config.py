@@ -4,7 +4,7 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# 以專案目錄（services/api）為基準讀取 .env，不受執行指令時所在目錄影響
+# 以專案目錄（api/）為基準讀取 .env，不受執行指令時所在目錄影響
 ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 
 

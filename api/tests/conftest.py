@@ -14,8 +14,8 @@ from sqlalchemy import delete, select, text
 from app.config import get_settings
 from app.db import SessionLocal
 from app.main import app
-from app.rate_limit import login_limiter
-from app.security import CurrentUser, create_token
+from app.middleware.rate_limit import login_limiter
+from app.session import CurrentUser, create_token
 from app.models import (
     Enrollment,
     ScoreChangeLog,
