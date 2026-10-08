@@ -63,6 +63,7 @@ migrations\           Alembic：env.py 與 versions\（0001_init：15 張表、C
 seed\                 seed.sql（種子資料）與 python -m seed
 tests\                pytest（35 項）
 database\             schema.generated.sql（完整建表 SQL，閱讀用）、sql-examples.sql（SQL 操作範例）
+database\original-design\  專案一開始的 3NF 設計（ER 圖、關聯綱要、原始資料 xlsx），非現行結構
 ```
 
 ## 資料庫維護
