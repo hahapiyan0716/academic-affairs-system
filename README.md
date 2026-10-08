@@ -11,12 +11,12 @@
 - 登入狀態是 api 簽發的 httpOnly cookie（`access_token`，內容是 JWT）。
 - 只有 api 會連資料庫；web 沒有資料庫密碼。
 
-| 資料夾／檔案 | 內容 | 說明 |
-| --- | --- | --- |
-| `api/` | FastAPI、SQLAlchemy 2.1、Alembic、PyMySQL | 詳見 [`api/README.md`](api/README.md) |
-| `web/` | Next.js 16、React 19、Tailwind CSS、shadcn/ui | 詳見 [`web/README.md`](web/README.md) |
-| `系統架構筆記.md` | | 架構、資料庫設計、認證、選課交易的完整說明（只寫現在的設計） |
-| `演進紀錄.md` | | 舊寫法、改名、bug 怎麼發現與修掉的經過 |
+| 資料夾／檔案        | 內容                                          | 說明                                                         |
+| ------------------- | --------------------------------------------- | ------------------------------------------------------------ |
+| `api/`            | FastAPI、SQLAlchemy 2.1、Alembic、PyMySQL     | 詳見[`api/README.md`](api/README.md)                        |
+| `web/`            | Next.js 16、React 19、Tailwind CSS、shadcn/ui | 詳見[`web/README.md`](web/README.md)                        |
+| `系統架構筆記.md` |                                               | 架構、資料庫設計、認證、選課交易的完整說明（只寫現在的設計） |
+| `演進紀錄.md`     |                                               | 舊寫法、改名、bug 怎麼發現與修掉的經過                       |
 
 ---
 
@@ -70,33 +70,33 @@ Set-Location web
 npm run dev
 ```
 
-| 網址 | 內容 |
-| --- | --- |
-| <http://localhost:3000> | 網站本身 |
-| <http://localhost:3000/api/docs> | API 文件（Swagger）；登入後可直接試打 API |
+| 網址                                                            | 內容                                      |
+| --------------------------------------------------------------- | ----------------------------------------- |
+| [http://localhost:3000](http://localhost:3000)                   | 網站本身                                  |
+| [http://localhost:3000/api/docs](http://localhost:3000/api/docs) | API 文件（Swagger）；登入後可直接試打 API |
 
 ### 種子帳號
 
 所有帳號的密碼皆為 `api\.env` 中的 `SEED_PASSWORD`。
 
-| 身分 | 帳號 | 說明 |
-| --- | --- | --- |
-| 管理員 | `admin` | |
-| 教師 | `T001`～`T008` | `T001` 岳飛、`T003` 劉邦具開課權限 |
-| 學生 | `S001`～`S022` | `S002`、`S008` 休學，`S010` 退學（不可選課） |
+| 身分   | 帳號               | 說明                                               |
+| ------ | ------------------ | -------------------------------------------------- |
+| 管理員 | `admin`          |                                                    |
+| 教師   | `T001`～`T008` | `T001` 岳飛、`T003` 劉邦具開課權限             |
+| 學生   | `S001`～`S022` | `S002`、`S008` 休學，`S010` 退學（不可選課） |
 
 學期：`1132`、`1141` 為已結束的歷史學期，`1151` 為目前學期（選課中）。
 
 ### 常見卡關
 
-| 症狀 | 原因與處理 |
-| --- | --- |
-| 在專案最外層執行 `npm run dev` 出現 `ENOENT … package.json` | 最外層不是 npm 專案，要先 `Set-Location web` |
-| 登入失敗、或所有頁面的資料都載入失敗 | api 沒開。看終端機 1 有沒有在跑 |
-| web 啟動時說 3000 已被使用 | 有其他 Next.js 專案正在使用 3000；關掉它，或改用 `npm run dev -- -p 3100` |
-| 登入後馬上被導回登入頁 | `web\.env.local` 與 `api\.env` 的 `JWT_SECRET` 不一致 |
-| `alembic` 指令出現 `UnicodeDecodeError` | `alembic.ini` 裡出現了中文；這個檔案必須維持純 ASCII（說明見 `api\migrations\env.py`） |
-| `next build` 中途當掉 | 記憶體不足。先停掉開發伺服器再建置 |
+| 症狀                                                            | 原因與處理                                                                                 |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 在專案最外層執行`npm run dev` 出現 `ENOENT … package.json` | 最外層不是 npm 專案，要先`Set-Location web`                                              |
+| 登入失敗、或所有頁面的資料都載入失敗                            | api 沒開。看終端機 1 有沒有在跑                                                            |
+| web 啟動時說 3000 已被使用                                      | 有其他 Next.js 專案正在使用 3000；關掉它，或改用`npm run dev -- -p 3100`                 |
+| 登入後馬上被導回登入頁                                          | `web\.env.local` 與 `api\.env` 的 `JWT_SECRET` 不一致                                |
+| `alembic` 指令出現 `UnicodeDecodeError`                     | `alembic.ini` 裡出現了中文；這個檔案必須維持純 ASCII（說明見 `api\migrations\env.py`） |
+| `next build` 中途當掉                                         | 記憶體不足。先停掉開發伺服器再建置                                                         |
 
 ## 測試
 
