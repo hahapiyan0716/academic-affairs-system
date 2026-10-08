@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `web/` | Next.js 16 + React 19 + Tailwind + shadcn/ui | 3000 | 畫面；`next.config.ts` 將 `/api/*` 轉發到 api；`proxy.ts` 負責頁面導向 |
 | `api/` | FastAPI + SQLAlchemy 2.1 + Alembic（Python 3.12） | 8000 | 認證（簽發 JWT）、管理員、開課、選課、成績、課表、歷年查詢；**擁有資料庫結構** |
 
-文件分工（與 todo-app 相同）：
+文件分工（與 todo-app 相同；兩份筆記只存在使用者的電腦上，已列入 `.gitignore` 並從 git 歷史中移除，不要把它們加回版控）：
 
 - `README.md`（根目錄、`api/`、`web/` 各一份）：怎麼啟動、資料夾在放什麼。
 - `系統架構筆記.md`：現在的設計與理由。

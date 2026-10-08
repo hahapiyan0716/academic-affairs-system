@@ -29,3 +29,7 @@ Thumbs.db
 # Log
 *.log
 npm-debug.log*
+
+# 本機筆記（不納入版控，已於 2026-10-08 從 git 歷史中移除）
+/系統架構筆記.md
+/演進紀錄.md
