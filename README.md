@@ -11,10 +11,10 @@
 - 登入狀態是 api 簽發的 httpOnly cookie（`access_token`，內容是 JWT）。
 - 只有 api 會連資料庫；web 沒有資料庫密碼。
 
-| 資料夾／檔案        | 內容                                          | 說明                                                         |
-| ------------------- | --------------------------------------------- | ------------------------------------------------------------ |
-| `api/`            | FastAPI、SQLAlchemy 2.1、Alembic、PyMySQL     | 詳見[`api/README.md`](api/README.md)                        |
-| `web/`            | Next.js 16、React 19、Tailwind CSS、shadcn/ui | 詳見[`web/README.md`](web/README.md)                        |
+| 資料夾／檔案                                | 內容                                          | 說明                                                         |
+| ------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------ |
+| `api/`                                    | FastAPI、SQLAlchemy 2.1、Alembic、PyMySQL     | 詳見[`api/README.md`](api/README.md)                        |
+| `web/`                                    | Next.js 16、React 19、Tailwind CSS、shadcn/ui | 詳見[`web/README.md`](web/README.md)                        |
 | `系統架構筆記.md`（本機筆記，未納入版控） |                                               | 架構、資料庫設計、認證、選課交易的完整說明（只寫現在的設計） |
 | `演進紀錄.md`（本機筆記，未納入版控）     |                                               | 舊寫法、改名、bug 怎麼發現與修掉的經過                       |
 
