@@ -4,6 +4,7 @@ import { AppShell } from "@/components/app-shell";
 const NAV = [
   { href: "/teacher", label: "我的開課" },
   { href: "/teacher/sections/new", label: "新增開課" },
+  { href: "/teacher/history", label: "歷年開課" },
 ];
 
 /** /teacher 底下所有頁面的外框；AppShell 會確認登入者是教師 */
