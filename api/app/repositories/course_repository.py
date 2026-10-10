@@ -3,7 +3,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import Course, Department, Section
+from app.models import Course, CurriculumField, Department, Section
 
 
 def _with_details():
@@ -32,6 +32,11 @@ def list_with_details(db: Session) -> list[Course]:
 def list_active(db: Session) -> list[Course]:
     """啟用中的課程（可開新班者）"""
     return list(db.scalars(select(Course).where(Course.is_active.is_(True)).order_by(Course.course_no)))
+
+
+def list_field_names(db: Session) -> list[str]:
+    """所有出現過的課程領域（不重複）"""
+    return list(db.scalars(select(CurriculumField.field_name).distinct().order_by(CurriculumField.field_name)))
 
 
 def add(db: Session, course: Course) -> None:

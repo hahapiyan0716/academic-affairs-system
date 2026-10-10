@@ -26,11 +26,12 @@ api 必須同時開著（另一個終端機），否則登入與所有資料都�
 app\
 ├─ login\                登入
 ├─ admin\                管理員：總覽、帳號（users\create-user-dialog.tsx）、開課權限、課程庫（courses\course-dialog.tsx）、學期
-├─ teacher\              教師：我的開課、新增開課（sections\new\slot-grid.tsx）、名單與登分（sections\[id]\section-settings.tsx）
+├─ teacher\              教師：我的開課、新增開課（sections\new\slot-grid.tsx）、名單與登分（sections\[id]\section-settings.tsx）、歷年開課
 ├─ student\              學生：加退選、課表（timetable\timetable-grid.tsx）、歷年成績、歷年開課
 ├─ layout.tsx            全站版面
 └─ globals.css
-components\              跨頁共用：AppShell（各角色外框）、導覽列、登出、common（載入中、錯誤、徽章、學期選單）、ui\（shadcn）
+components\              跨頁共用：AppShell（各角色外框）、導覽列、登出、common（載入中、錯誤、徽章、學期與領域選單）、
+                         history-sections（學生與教師共用的歷年開課畫面）、ui\（shadcn）
 lib\                     api.ts（呼叫 API）、session.ts（驗證 JWT）、labels.ts（列舉 → 中文）、utils.ts
 proxy.ts                 路由保護（Next.js 16 起 middleware 更名為 proxy）
 types.ts                 與 api 回應對應的型別

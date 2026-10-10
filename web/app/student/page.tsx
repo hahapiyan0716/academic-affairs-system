@@ -6,6 +6,7 @@ import {
   EmptyState,
   EnrollmentBadge,
   ErrorState,
+  FieldSelect,
   LoadingState,
   PageHeader,
   SemesterStatusBadge,
@@ -28,14 +29,17 @@ export default function EnrollPage() {
   const [q, setQ] = useState("");
   // 停止輸入後才送出搜尋，避免每打一個字就查一次
   const keyword = useDebouncedValue(q.trim());
+  // 領域為下拉選單，選定即查詢，不需延遲
+  const [field, setField] = useState("");
   // 正在送出加退選請求的班級，用來停用該列按鈕、防止重複點擊
   const [busy, setBusy] = useState<number | null>(null);
   const { data: semesters } = useApi<Semester[]>("/api/semesters");
   const current = semesters?.find((s) => s.is_current);
   // 不帶 semester_id 時，後端預設查詢目前學期
-  const { data, error, loading, reload } = useApi<BrowseSection[]>(
-    `/api/sections${keyword ? `?q=${encodeURIComponent(keyword)}` : ""}`,
-  );
+  const params = new URLSearchParams();
+  if (keyword) params.set("q", keyword);
+  if (field) params.set("field", field);
+  const { data, error, loading, reload } = useApi<BrowseSection[]>(`/api/sections?${params}`);
   // 只用來決定按鈕是否可按；真正的限制由後端檢查
   const enrolling = current?.status === "Enrolling";
 
@@ -69,6 +73,7 @@ export default function EnrollPage() {
         }
       >
         {current && <SemesterStatusBadge status={current.status} />}
+        <FieldSelect value={field} onChange={setField} />
         <Input
           placeholder="搜尋課名、課號、教師"
           value={q}
@@ -97,6 +102,7 @@ export default function EnrollPage() {
                 <TableRow>
                   <TableHead>課程</TableHead>
                   <TableHead>類型</TableHead>
+                  <TableHead>領域</TableHead>
                   <TableHead>授課教師</TableHead>
                   <TableHead>時段（教室）</TableHead>
                   <TableHead className="text-right">已選／上限</TableHead>
@@ -118,6 +124,7 @@ export default function EnrollPage() {
                         </div>
                       </TableCell>
                       <TableCell>{COURSE_TYPE[s.course_type]}</TableCell>
+                      <TableCell className="text-sm">{s.field_names ?? "—"}</TableCell>
                       <TableCell>{s.teacher_names}</TableCell>
                       <TableCell className="text-sm">{compactSchedule(s.schedule_text)}</TableCell>
                       <TableCell className="text-right tabular-nums">

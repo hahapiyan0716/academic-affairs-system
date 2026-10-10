@@ -54,6 +54,7 @@ export default function TeacherHome() {
                   <TableHead>學期</TableHead>
                   <TableHead>課程</TableHead>
                   <TableHead>類型</TableHead>
+                  <TableHead>領域</TableHead>
                   <TableHead>授課教師</TableHead>
                   <TableHead>時段</TableHead>
                   <TableHead className="text-right">人數</TableHead>
@@ -71,6 +72,7 @@ export default function TeacherHome() {
                       </div>
                     </TableCell>
                     <TableCell>{COURSE_TYPE[s.course_type]}</TableCell>
+                    <TableCell className="text-sm">{s.field_names ?? "—"}</TableCell>
                     <TableCell>{s.teacher_names}</TableCell>
                     <TableCell className="text-sm">
                       {s.status === "Cancelled" ? <Badge variant="outline">已停開</Badge> : compactSchedule(s.schedule_text)}

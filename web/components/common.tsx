@@ -102,3 +102,23 @@ export function SemesterSelect({
     </Select>
   );
 }
+
+/** 課程領域下拉選單；第一個選項「全部領域」的值為空字串 */
+export function FieldSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { data } = useApi<string[]>("/api/fields");
+  return (
+    <Select value={value || "__all"} onValueChange={(v) => onChange(v === "__all" ? "" : v)}>
+      <SelectTrigger className="w-36">
+        <SelectValue placeholder="課程領域" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__all">全部領域</SelectItem>
+        {data?.map((f) => (
+          <SelectItem key={f} value={f}>
+            {f}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}

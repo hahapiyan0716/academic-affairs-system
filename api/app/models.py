@@ -468,7 +468,7 @@ class ScoreChangeLog(Base):
 
 
 # ---------------------------------------------------------------------
-# View（唯讀）：由 migrations/versions/0001_init.py 以 CREATE VIEW 建立
+# View（唯讀）：由 migrations/versions/ 以 CREATE VIEW 建立（目前的定義在 0002_field_names.py）
 # info={"is_view": True} 讓 Alembic autogenerate 略過它們（見 migrations/env.py）
 # ---------------------------------------------------------------------
 
@@ -497,6 +497,7 @@ class SectionDetailView(Base):
     teacher_names: Mapped[str | None] = mapped_column(VARCHAR(500))
     schedule_text: Mapped[str | None] = mapped_column(VARCHAR(500))
     enrolled_count: Mapped[int] = mapped_column(Integer)
+    field_names: Mapped[str | None] = mapped_column(VARCHAR(500))  # 課程領域，以「、」串接
 
 
 class TranscriptView(Base):
@@ -518,3 +519,4 @@ class TranscriptView(Base):
     status: Mapped[str] = mapped_column(VARCHAR(12))
     score: Mapped[Decimal | None] = mapped_column(DECIMAL(4, 1))
     passed: Mapped[int | None] = mapped_column(Integer)
+    field_names: Mapped[str | None] = mapped_column(VARCHAR(500))

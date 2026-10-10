@@ -19,6 +19,7 @@ router = APIRouter(prefix="/api", tags=["common"])
 DB = Annotated[Session, Depends(get_db)]
 # 搜尋關鍵字：限制長度，避免過長字串造成昂貴的 LIKE 查詢
 Keyword = Annotated[str | None, Query(max_length=30)]
+FieldName = Annotated[str | None, Query(max_length=50)]  # 與 CurriculumField.field_name 長度一致
 
 # 參數 `_: AnyUser` 只用來要求登入，函式本身不需要登入者資訊
 
@@ -41,6 +42,12 @@ def list_courses(_: AnyUser, db: DB):
     return course_service.list_active(db)
 
 
+@router.get("/fields", response_model=list[str])
+def list_fields(_: AnyUser, db: DB):
+    """課程領域清單（篩選用下拉選單）"""
+    return course_service.list_field_names(db)
+
+
 @router.get("/teachers", response_model=list[TeacherBriefOut])
 def list_teachers(_: AnyUser, db: DB):
     """全部教師的代碼與姓名"""
@@ -48,12 +55,21 @@ def list_teachers(_: AnyUser, db: DB):
 
 
 @router.get("/sections", response_model=list[BrowseSectionOut])
-def browse_sections(user: AnyUser, db: DB, semester_id: str | None = None, q: Keyword = None):
+def browse_sections(
+    user: AnyUser, db: DB, semester_id: str | None = None, q: Keyword = None, field: FieldName = None
+):
     """瀏覽某學期（預設目前學期）的開放班級；學生會額外得到自己的選課狀態與衝堂標記"""
-    return section_service.browse(db, user, semester_id, q)
+    return section_service.browse(db, user, semester_id, q, field)
 
 
 @router.get("/history/sections", response_model=list[HistorySectionOut])
-def history_sections(_: AnyUser, db: DB, course_no: str | None = None, teacher: Keyword = None, q: Keyword = None):
+def history_sections(
+    _: AnyUser,
+    db: DB,
+    course_no: str | None = None,
+    teacher: Keyword = None,
+    q: Keyword = None,
+    field: FieldName = None,
+):
     """歷年開課紀錄：跨學期查詢某課程由哪些教師開設、修課人數與平均成績"""
-    return section_service.history(db, course_no, teacher, q)
+    return section_service.history(db, course_no, teacher, q, field)

@@ -54,6 +54,7 @@ class TranscriptRow(ORMModel):
     status: str
     score: Decimal | None
     passed: int | None  # 1 = 及格、0 = 不及格、None = 尚未登分
+    field_names: str | None  # 課程領域，以「、」串接
 
 
 class TranscriptSemester(BaseModel):

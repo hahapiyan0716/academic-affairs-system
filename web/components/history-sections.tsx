@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { EmptyState, ErrorState, LoadingState, PageHeader } from "@/components/common";
+import { EmptyState, ErrorState, FieldSelect, LoadingState, PageHeader } from "@/components/common";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,12 +12,14 @@ import { useDebouncedValue } from "@/lib/use-debounced-value";
 import type { HistorySection } from "@/types";
 
 /**
- * 歷年開課紀錄：依課名／課號與教師姓名搜尋跨學期的開課資料。
+ * 歷年開課紀錄：依課程領域、課名／課號與教師姓名搜尋跨學期的開課資料。
  * 學生與教師共用（/student/history、/teacher/history）；API 開放給所有已登入角色。
  */
 export function HistorySections() {
   const [q, setQ] = useState("");
   const [teacher, setTeacher] = useState("");
+  // 領域為下拉選單，選定即查詢，不需延遲
+  const [field, setField] = useState("");
   // 兩個搜尋框合併成一個字串再延遲，連續在兩個欄位間輸入時也只發一次請求。
   // 用字串而非物件：物件每次渲染都是新的參考，會讓 useDebouncedValue 的 effect 不斷重跑。
   // 單行輸入框無法輸入換行，因此以 \n 分隔不會與內容衝突。
@@ -27,11 +29,13 @@ export function HistorySections() {
   const params = new URLSearchParams();
   if (keyword) params.set("q", keyword);
   if (teacherName) params.set("teacher", teacherName);
+  if (field) params.set("field", field);
   const { data, error, loading } = useApi<HistorySection[]>(`/api/history/sections?${params}`);
 
   return (
     <>
       <PageHeader title="歷年開課紀錄" description="查詢各學期的開課內容、授課教師、修課人數與平均成績">
+        <FieldSelect value={field} onChange={setField} />
         <Input placeholder="課名或課號" value={q} onChange={(e) => setQ(e.target.value)} className="w-40" />
         <Input placeholder="教師姓名" value={teacher} onChange={(e) => setTeacher(e.target.value)} className="w-32" />
       </PageHeader>
@@ -52,6 +56,7 @@ export function HistorySections() {
                   <TableHead>學期</TableHead>
                   <TableHead>課程</TableHead>
                   <TableHead>類型</TableHead>
+                  <TableHead>領域</TableHead>
                   <TableHead>授課教師</TableHead>
                   <TableHead>時段（教室）</TableHead>
                   <TableHead className="text-right">修課人數</TableHead>
@@ -69,6 +74,7 @@ export function HistorySections() {
                       </span>
                     </TableCell>
                     <TableCell>{COURSE_TYPE[s.course_type]}</TableCell>
+                    <TableCell className="text-sm">{s.field_names ?? "—"}</TableCell>
                     <TableCell>{s.teacher_names}</TableCell>
                     {/* 停開的班級時段已被刪除（釋放教室），改顯示「已停開」 */}
                     <TableCell className="text-sm">

@@ -39,6 +39,7 @@ export interface Section {
   teacher_names: string | null; // 多位教師以「、」分隔
   schedule_text: string | null; // 例如 "一5@O313,一6@O313"，顯示時用 compactSchedule 轉換
   enrolled_count: number;
+  field_names: string | null; // 課程領域，以「、」分隔
 }
 
 /** 選課瀏覽的班級；my_status、conflict 只有學生查詢時才有意義 */
@@ -94,6 +95,7 @@ export interface TranscriptRow {
   status: string;
   score: string | null;
   passed: number | null; // 1 = 及格、0 = 不及格、null = 尚未登分
+  field_names: string | null; // 課程領域，以「、」分隔
 }
 
 /** 學生歷年成績單 */
