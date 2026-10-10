@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, useApi } from "@/lib/api";
 import { COURSE_TYPE, compactSchedule, semesterLabel } from "@/lib/labels";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import type { BrowseSection, Semester } from "@/types";
 
 // 有效選課狀態，與後端 models.ACTIVE_ENROLLMENT 一致
@@ -25,13 +26,15 @@ const ACTIVE = ["Selected", "Manual"];
 /** 學生加退選：瀏覽目前學期的開放班級，即時加選或退選 */
 export default function EnrollPage() {
   const [q, setQ] = useState("");
+  // 停止輸入後才送出搜尋，避免每打一個字就查一次
+  const keyword = useDebouncedValue(q.trim());
   // 正在送出加退選請求的班級，用來停用該列按鈕、防止重複點擊
   const [busy, setBusy] = useState<number | null>(null);
   const { data: semesters } = useApi<Semester[]>("/api/semesters");
   const current = semesters?.find((s) => s.is_current);
   // 不帶 semester_id 時，後端預設查詢目前學期
   const { data, error, loading, reload } = useApi<BrowseSection[]>(
-    `/api/sections${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ""}`,
+    `/api/sections${keyword ? `?q=${encodeURIComponent(keyword)}` : ""}`,
   );
   // 只用來決定按鈕是否可按；真正的限制由後端檢查
   const enrolling = current?.status === "Enrolling";

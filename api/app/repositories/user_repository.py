@@ -21,6 +21,11 @@ def get_by_id(db: Session, user_id: int) -> UserAccount | None:
     return db.scalar(select(UserAccount).where(UserAccount.user_id == user_id).options(*_with_profiles()))
 
 
+def find_is_active(db: Session, user_id: int) -> bool | None:
+    """只查帳號的啟用狀態（以主鍵查單一欄位）；帳號不存在時回傳 None"""
+    return db.scalar(select(UserAccount.is_active).where(UserAccount.user_id == user_id))
+
+
 def list_users(db: Session, role: Role | None, keyword: str | None) -> list[UserAccount]:
     """依角色與關鍵字（帳號、教師姓名、學生姓名）篩選"""
     # 以 LEFT JOIN 接上教師與學生：Admin 兩邊都沒有，仍要出現在結果中

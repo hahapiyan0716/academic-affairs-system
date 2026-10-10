@@ -68,7 +68,8 @@ npx next build
 - `POST /api/auth/login` 簽發 JWT（HS256），存在 httpOnly cookie `access_token`。以下兩處的 `JWT_SECRET`、issuer `academic-affairs-system`、cookie 名稱必須一致：
   - `api/app/config.py` 與 `api/app/session.py`（`api/.env`）
   - `web/lib/session.ts`（`web/.env.local`）
-- JWT payload：`sub`（user_id）、`username`、`role`、`name`、`teacher_id`、`student_id`。**刻意不放 `can_open_section` 與學籍狀態**：權限可能隨時被收回，必須每次查資料庫。
+- JWT payload：`sub`（user_id）、`username`、`role`、`name`、`teacher_id`、`student_id`。**刻意不放 `can_open_section` 與學籍狀態**：權限可能隨時被收回，必須每次查資料庫。帳號是否停用（`is_active`）同理，由 `require_auth.get_current_user` 在每個需登入的請求查詢，停用後舊 JWT 立即回 401。
+- 前端 `lib/api.ts` 收到 401 時先呼叫 `/api/auth/logout` 清除 cookie 再導向 `/login`：被停用帳號的 JWT 仍通過 `proxy.ts` 驗證，若不清 cookie 會在登入頁與角色首頁之間無限導向。
 - `web/proxy.ts` 只負責頁面導向，不是安全邊界；權限一律由後端檢查。
 - 密碼以 `bcrypt` 雜湊。bcrypt 5.x 對超過 72 bytes 的輸入會拋出例外，因此密碼上限以 bytes 驗證（`schemas/auth_schema.py` 的 `Password`）。
 - 登入限流存在單一 process 的記憶體中；只信任來自 loopback（Next.js rewrites）的 `X-Forwarded-For`。

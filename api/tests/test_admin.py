@@ -55,6 +55,26 @@ def test_cannot_deactivate_self(client_as):
     assert admin.patch(f"/api/admin/users/{admin_id}", json={"is_active": False}).status_code == 400
 
 
+def test_deactivated_account_rejected_immediately(client_as):
+    """帳號被停用後，尚未過期的 JWT 也立即失效（401）；重新啟用後恢復"""
+    s005 = client_as("S005")
+    assert s005.get("/api/auth/me").status_code == 200
+
+    admin = client_as("admin", role="Admin")
+    with SessionLocal() as db:
+        user_id = db.scalar(select(UserAccount.user_id).where(UserAccount.username == "S005"))
+    try:
+        assert admin.patch(f"/api/admin/users/{user_id}", json={"is_active": False}).status_code == 200
+        for path in ("/api/auth/me", "/api/me/timetable", "/api/sections"):
+            res = s005.get(path)
+            assert res.status_code == 401, path
+            assert "停用" in res.json()["detail"]
+    finally:
+        # 重新啟用，不留下改動
+        assert admin.patch(f"/api/admin/users/{user_id}", json={"is_active": True}).status_code == 200
+    assert s005.get("/api/auth/me").status_code == 200
+
+
 def test_duplicate_course_conflict(client_as):
     """課號重複時由資料庫的主鍵約束擋下，轉成 409"""
     res = client_as("admin", role="Admin").post(

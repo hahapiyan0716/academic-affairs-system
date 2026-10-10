@@ -51,6 +51,15 @@ def to_current_user(account: UserAccount) -> CurrentUser:
     )
 
 
+def ensure_active(db: Session, user_id: int) -> None:
+    """
+    每個需要登入的請求都會呼叫：JWT 有效期間帳號仍可能被停用或刪除，必須以資料庫為準。
+    回 401（而非 403）讓前端清除 cookie 並回到登入頁。
+    """
+    if not user_repository.find_is_active(db, user_id):
+        raise UnauthorizedError("帳號已停用或不存在，請重新登入")
+
+
 def login(db: Session, username: str, password: str) -> CurrentUser:
     """驗證帳號密碼並記錄登入時間；成功時回傳登入者身分，由 route 寫入 cookie"""
     account = user_repository.find_by_username(db, username)

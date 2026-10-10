@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, useApi } from "@/lib/api";
 import { ROLE_LABEL, STUDENT_STATUS } from "@/lib/labels";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import type { AdminUser, Role } from "@/types";
 import CreateUserDialog from "./create-user-dialog";
 
@@ -18,10 +19,12 @@ import CreateUserDialog from "./create-user-dialog";
 export default function UsersPage() {
   const [role, setRole] = useState<"" | Role>(""); // 空字串 = 全部身分
   const [q, setQ] = useState("");
+  // 關鍵字停止輸入後才套用；身分是下拉選單，切換時立即生效
+  const keyword = useDebouncedValue(q.trim());
   // 篩選條件直接組成查詢字串；條件改變 → path 改變 → useApi 自動重新請求
   const params = new URLSearchParams();
   if (role) params.set("role", role);
-  if (q.trim()) params.set("q", q.trim());
+  if (keyword) params.set("q", keyword);
   const { data, error, loading, reload } = useApi<AdminUser[]>(`/api/admin/users?${params}`);
 
   /** 啟用／停用登入（後端禁止停用自己） */

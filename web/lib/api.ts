@@ -17,6 +17,22 @@ export class ApiError extends Error {
   }
 }
 
+// 同一頁面常同時發出多個請求，避免每個 401 都各自清除 cookie 與跳轉
+let redirecting = false;
+
+/**
+ * 登入失效：先請後端清除 cookie，再整頁重新載入登入頁。
+ * 必須先清 cookie：帳號被停用時 JWT 本身仍有效，proxy 只驗 JWT 會把使用者導回角色首頁，
+ * 首頁的 API 又回 401，形成無限導向。
+ */
+async function redirectToLogin() {
+  if (redirecting) return;
+  redirecting = true;
+  // 直接用 fetch 而非 api()，避免登出請求本身失敗時再次進入這裡
+  await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => undefined);
+  hardNavigate("/login");
+}
+
 /**
  * 呼叫後端 API（同源，經 Next.js rewrites 轉發；cookie 由瀏覽器自動帶上）。
  * 後端的錯誤格式統一為 { detail: string }（見 api/app/middleware/error_handler.py）。
@@ -33,8 +49,7 @@ export async function api<T>(path: string, init?: RequestInit & { json?: unknown
 
   // 登入 API 本身回 401 代表「帳號或密碼錯誤」，要顯示訊息而不是導向登入頁
   if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/api/auth/login")) {
-    // 登入失效：整頁重新載入登入頁，讓 proxy 與 Server Component 重新判斷狀態
-    hardNavigate("/login");
+    await redirectToLogin();
   }
   if (!res.ok) {
     let detail = `請求失敗（${res.status}）`;

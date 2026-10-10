@@ -2,22 +2,34 @@
 認證與授權檢查（FastAPI 依賴）。
 
 FastAPI 以「依賴（Depends）」實作每支 API 的前置檢查，作用等同 Express 的 route middleware：
-在路由參數宣告 AdminUser／TeacherUser／StudentUser，就會先驗證 cookie 中的 JWT 與角色。
+在路由參數宣告 AdminUser／TeacherUser／StudentUser，就會先驗證 cookie 中的 JWT、帳號狀態與角色。
 """
 
 from typing import Annotated
 
 from fastapi import Cookie, Depends
+from sqlalchemy.orm import Session
 
+from app.db import get_db
 from app.errors import ForbiddenError, UnauthorizedError
+from app.services import auth_service
 from app.session import CurrentUser, Role, decode_token
 
 
-def get_current_user(access_token: Annotated[str | None, Cookie()] = None) -> CurrentUser:
-    """從 cookie 取出 JWT 並還原登入者；參數名稱 access_token 即 cookie 名稱"""
+def get_current_user(
+    db: Annotated[Session, Depends(get_db)],
+    access_token: Annotated[str | None, Cookie()] = None,
+) -> CurrentUser:
+    """
+    從 cookie 取出 JWT 並還原登入者；參數名稱 access_token 即 cookie 名稱。
+    JWT 驗證通過後再查一次帳號是否仍啟用：停用帳號必須立即失效，不能等 JWT 過期。
+    同一個請求內 FastAPI 會快取依賴結果，這裡的 db 與路由拿到的是同一個 Session。
+    """
     if not access_token:
         raise UnauthorizedError("尚未登入")
-    return decode_token(access_token)
+    user = decode_token(access_token)
+    auth_service.ensure_active(db, user.user_id)
+    return user
 
 
 def require_role(*roles: Role):

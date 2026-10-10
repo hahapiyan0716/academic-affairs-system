@@ -36,5 +36,5 @@ def logout(response: Response):
 
 @router.get("/me")
 def me(user: AnyUser):
-    """目前登入者（內容取自 JWT，不查資料庫）"""
+    """目前登入者（身分內容取自 JWT；帳號是否仍啟用則由 AnyUser 查資料庫確認）"""
     return {"user": user.to_public()}
