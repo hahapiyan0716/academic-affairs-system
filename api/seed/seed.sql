@@ -77,9 +77,8 @@ INSERT INTO Course (course_no, course_name, course_type, credit) VALUES
 ('A0006', '音樂欣賞', 'Elective', 2),
 ('A0007', '演算法', 'Elective', 3);
 
--- 註：A0001（日文）歸在「理論數學」領域沿用自原始資料，疑似原始資料錯誤，保留待確認
 INSERT INTO CurriculumField (course_no, field_name) VALUES
-('A0001', '理論數學'),
+('A0001', '語言'),
 ('A0002', '基礎知識'),
 ('A0002', '人工智慧'),
 ('A0003', '財務工程'),
