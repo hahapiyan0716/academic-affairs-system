@@ -7,10 +7,15 @@ from app.models import Course, Department, Section
 
 
 def _with_details():
+    """
+    預先載入領域與系所的選項。selectinload 以額外一句 IN 查詢一次取回所有課程的關聯資料，
+    避免逐筆存取 course.fields 時產生 N+1 查詢
+    """
     return (selectinload(Course.fields), selectinload(Course.department))
 
 
 def get(db: Session, course_no: str) -> Course | None:
+    """依主鍵取得課程，不存在回傳 None"""
     return db.get(Course, course_no)
 
 
@@ -20,18 +25,22 @@ def get_with_details(db: Session, course_no: str) -> Course | None:
 
 
 def list_with_details(db: Session) -> list[Course]:
+    """全部課程（含停用），一併載入領域與系所"""
     return list(db.scalars(select(Course).options(*_with_details()).order_by(Course.course_no)))
 
 
 def list_active(db: Session) -> list[Course]:
+    """啟用中的課程（可開新班者）"""
     return list(db.scalars(select(Course).where(Course.is_active.is_(True)).order_by(Course.course_no)))
 
 
 def add(db: Session, course: Course) -> None:
+    """加入 Session；實際寫入在 service commit 時"""
     db.add(course)
 
 
 def count_active(db: Session) -> int:
+    """啟用中的課程數"""
     return db.scalar(select(func.count()).select_from(Course).where(Course.is_active.is_(True))) or 0
 
 
@@ -46,4 +55,5 @@ def section_counts(db: Session, course_nos: list[str]) -> dict[str, int]:
 
 
 def list_departments(db: Session) -> list[Department]:
+    """全部系所，依系所代碼排序"""
     return list(db.scalars(select(Department).order_by(Department.dept_id)))

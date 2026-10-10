@@ -8,6 +8,7 @@ import { useApi } from "@/lib/api";
 import { COURSE_TYPE, semesterLabel } from "@/lib/labels";
 import type { Transcript } from "@/types";
 
+/** 歷年成績：依學期分組列出成績，並顯示實得學分與加權平均（計算在後端完成） */
 export default function TranscriptPage() {
   const { data, error, loading } = useApi<Transcript>("/api/me/transcript");
 
@@ -63,6 +64,7 @@ export default function TranscriptPage() {
                         <TableCell className="text-right tabular-nums">{r.credit}</TableCell>
                         <TableCell className="text-right tabular-nums">{r.score ?? "—"}</TableCell>
                         <TableCell className="text-right">
+                          {/* passed：null = 尚未登分、1 = 及格、0 = 不及格 */}
                           {r.passed === null ? (
                             <Badge variant="outline">未評分</Badge>
                           ) : r.passed ? (

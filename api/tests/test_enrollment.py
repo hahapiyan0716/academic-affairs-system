@@ -12,6 +12,7 @@ from app.services.enrollment_service import enroll
 
 
 def test_enroll_then_withdraw(make_section, client_as):
+    """加選 → 重複加選被拒 → 退選 → 重新加選"""
     sid = make_section()
     s001 = client_as("S001")
 
@@ -31,6 +32,7 @@ def test_enroll_then_withdraw(make_section, client_as):
 
 
 def test_full_section_rejected(make_section, client_as):
+    """名額已滿時加選失敗"""
     sid = make_section(capacity=1)
     assert client_as("S001").post("/api/enrollments", json={"section_id": sid}).status_code == 201
 
@@ -40,6 +42,7 @@ def test_full_section_rejected(make_section, client_as):
 
 
 def test_time_conflict_rejected(make_section, client_as):
+    """與已選課程有任一節重疊（星期二第 4 節）即視為衝堂"""
     a = make_section(course_no="A0001", slots=[(2, 3, "O313"), (2, 4, "O313")])
     b = make_section(course_no="A0002", slots=[(2, 4, "L102")])
     s001 = client_as("S001")
@@ -51,6 +54,7 @@ def test_time_conflict_rejected(make_section, client_as):
 
 
 def test_same_course_twice_rejected(make_section, client_as):
+    """同一學期不可同時選同一門課的兩個班（時段不衝突也一樣）"""
     a = make_section(course_no="A0003", section_code="01", slots=[(3, 1, "O313")])
     b = make_section(course_no="A0003", section_code="02", slots=[(4, 1, "O313")])
     s001 = client_as("S001")
@@ -62,6 +66,7 @@ def test_same_course_twice_rejected(make_section, client_as):
 
 
 def test_suspended_student_rejected(make_section, client_as):
+    """非在學的學生不可選課"""
     sid = make_section()
     # S002 孫尚香為休學狀態
     res = client_as("S002").post("/api/enrollments", json={"section_id": sid})
@@ -69,6 +74,7 @@ def test_suspended_student_rejected(make_section, client_as):
 
 
 def test_semester_not_enrolling(semester, make_section, client_as):
+    """學期不在「選課中」時不可加選"""
     sid = make_section()
     semester(SemesterStatus.InProgress)
     res = client_as("S001").post("/api/enrollments", json={"section_id": sid})
@@ -77,6 +83,7 @@ def test_semester_not_enrolling(semester, make_section, client_as):
 
 
 def test_browse_marks_conflict(make_section, client_as):
+    """瀏覽班級時，已選的班不標衝堂，與它時段重疊的其他班標為衝堂"""
     a = make_section(course_no="A0001", slots=[(5, 1, "O313")])
     b = make_section(course_no="A0002", slots=[(5, 1, "L102")])
     s001 = client_as("S001")
@@ -88,6 +95,7 @@ def test_browse_marks_conflict(make_section, client_as):
 
 
 def test_auth_required(make_section, client_as):
+    """未登入 401；角色不符 403"""
     from fastapi.testclient import TestClient
 
     from app.main import app
@@ -109,6 +117,7 @@ def test_concurrent_enrollment_never_oversells(make_section, round_):
     barrier = threading.Barrier(len(students))
     results: dict[str, str] = {}
 
+    # 每個執行緒使用自己的 Session（連線），直接呼叫 service，模擬多個同時進來的請求
     def worker(student_id: str) -> None:
         with SessionLocal() as db:
             barrier.wait()  # 所有執行緒同時起跑，盡可能製造競爭

@@ -14,14 +14,18 @@ router = APIRouter(prefix="/api", tags=["student"])
 
 DB = Annotated[Session, Depends(get_db)]
 
+# 學號一律取自登入身分（student_id_of），學生無法替他人加退選
+
 
 @router.post("/enrollments", response_model=EnrollmentOut, status_code=status.HTTP_201_CREATED)
 def enroll(user: StudentUser, db: DB, body: EnrollIn):
+    """加選（先搶先贏）"""
     return enrollment_service.enroll(db, student_id_of(user), body.section_id)
 
 
 @router.delete("/enrollments/{section_id}", response_model=EnrollmentOut)
 def withdraw(user: StudentUser, db: DB, section_id: int):
+    """退選：紀錄不刪除，狀態改為 Withdrawn"""
     return enrollment_service.withdraw(db, student_id_of(user), section_id)
 
 

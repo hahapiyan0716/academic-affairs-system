@@ -10,6 +10,7 @@ from app.services.auth_service import hash_password
 
 
 def _get(db: Session, user_id: int) -> UserAccount:
+    """取得帳號（含教師／學生資料），不存在時 404"""
     user = user_repository.get_by_id(db, user_id)
     if user is None:
         raise NotFoundError("找不到帳號")
@@ -17,6 +18,7 @@ def _get(db: Session, user_id: int) -> UserAccount:
 
 
 def list_users(db: Session, role: Role | None, keyword: str | None) -> list[UserAccount]:
+    """帳號列表；空白關鍵字視為未篩選"""
     return user_repository.list_users(db, role, keyword.strip() if keyword and keyword.strip() else None)
 
 
@@ -29,6 +31,7 @@ def create_user(db: Session, data: UserCreateIn) -> UserAccount:
     elif isinstance(data, StudentCreateIn):
         student_repository.add(db, Student(**data.profile.model_dump(), status=StudentStatus.Enrolled, user=account))
     db.commit()
+    # 重新查詢一次，讓回應包含資料庫產生的欄位（created_at 等）與教師／學生資料
     return _get(db, account.user_id)
 
 
@@ -36,6 +39,7 @@ def update_user(db: Session, admin_id: int, user_id: int, data: UserUpdateIn) ->
     """停用／啟用、重設密碼"""
     if data.is_active is None and data.password is None:
         raise UnprocessableError("至少需提供一個欄位")
+    # 防止管理員把自己鎖在系統外
     if data.is_active is False and user_id == admin_id:
         raise BadRequestError("不可停用自己的帳號")
 
@@ -59,4 +63,5 @@ def update_student_status(db: Session, student_id: str, status: str) -> Student:
 
 
 def list_departments(db: Session) -> list[Department]:
+    """全部系所（建立帳號時的下拉選單）"""
     return course_repository.list_departments(db)

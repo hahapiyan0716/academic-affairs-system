@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
+// next/font 在建置時下載字型並自行託管；variable 讓 globals.css 以 CSS 變數引用
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -18,6 +19,7 @@ export const metadata: Metadata = {
   description: "輕量化教務管理系統：開課、選課、成績與歷年查詢",
 };
 
+/** 根版面：所有頁面共用的 <html>／<body> 與全域提示訊息（toast） */
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="zh-Hant-TW" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>

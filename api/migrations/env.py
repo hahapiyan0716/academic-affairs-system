@@ -17,11 +17,14 @@ from app.config import get_settings
 from app.migration_support import include_object, patch_case_insensitive_reflection
 from app.models import Base
 
+# alembic.ini 的內容
 config = context.config
 
+# 依 alembic.ini 的 [loggers] 等區段設定 log 輸出格式
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# autogenerate 以此為「應有的結構」，與實際資料庫比對後產生差異
 target_metadata = Base.metadata
 
 
@@ -39,6 +42,8 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    """一般模式：連上資料庫直接執行 migration"""
+    # NullPool：migration 是一次性指令，不需要連線池
     connectable = create_engine(get_settings().database_url, poolclass=pool.NullPool)
     with connectable.connect() as connection:
         patch_case_insensitive_reflection(connection, target_metadata)
@@ -46,6 +51,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             include_object=include_object,
+            # 欄位型別與 server_default 的差異也納入比對（Alembic 預設不比對預設值）
             compare_type=True,
             compare_server_default=True,
         )

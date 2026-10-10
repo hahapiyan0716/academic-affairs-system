@@ -1,3 +1,8 @@
+"""
+應用程式設定：集中定義所有環境變數的名稱、型別與驗證規則。
+其他模組一律透過 get_settings() 取得設定，不直接讀 os.environ。
+"""
+
 from functools import lru_cache
 from pathlib import Path
 
@@ -26,4 +31,5 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    """回傳全程式共用的設定物件；lru_cache 確保 .env 只讀取與驗證一次"""
     return Settings()  # type: ignore[call-arg]

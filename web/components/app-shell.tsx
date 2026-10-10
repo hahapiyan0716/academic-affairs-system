@@ -17,7 +17,9 @@ export async function AppShell({
   nav: NavItem[];
   children: React.ReactNode;
 }) {
+  // Next.js 16 的 cookies() 為非同步
   const user = await verifySession((await cookies()).get(AUTH_COOKIE)?.value);
+  // proxy.ts 已先擋過一次；這裡再檢查，確保取得 user 後的畫面不會以錯誤身分渲染
   if (!user || user.role !== role) redirect("/login");
 
   return (

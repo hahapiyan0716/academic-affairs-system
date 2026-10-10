@@ -31,6 +31,7 @@ TEST_SEMESTER = "9991"
 
 
 def _cleanup() -> None:
+    """刪除測試學期及其底下所有資料；順序為子表 → 父表，以免違反外鍵約束"""
     with SessionLocal() as db:
         section_ids = select(Section.section_id).where(Section.semester_id == TEST_SEMESTER)
         db.execute(delete(ScoreChangeLog).where(ScoreChangeLog.section_id.in_(section_ids)))
@@ -45,6 +46,7 @@ def _cleanup() -> None:
 @pytest.fixture
 def semester() -> Iterator[Callable[[SemesterStatus], None]]:
     """建立測試學期（預設為選課中），回傳可切換學期狀態的函式"""
+    # 先清一次：上次測試若中途被中斷，可能留下殘餘資料
     _cleanup()
     with SessionLocal() as db:
         db.add(Semester(semester_id=TEST_SEMESTER, acad_year=999, term=1, status=SemesterStatus.Enrolling))
@@ -55,10 +57,12 @@ def semester() -> Iterator[Callable[[SemesterStatus], None]]:
             db.get_one(Semester, TEST_SEMESTER).status = status
             db.commit()
 
+    # yield 之前是 setup、之後是 teardown；測試失敗時 teardown 仍會執行
     yield set_status
     _cleanup()
 
 
+# 依賴 semester fixture：班級一定建在測試學期中，並隨它一起被清除
 @pytest.fixture
 def make_section(semester) -> Callable[..., int]:
     """建立測試用班級，slots 格式為 [(weekday, period, room_code), ...]"""
@@ -89,6 +93,7 @@ def make_section(semester) -> Callable[..., int]:
 
 
 def _user_id(username: str) -> int:
+    """查詢種子帳號的 user_id（JWT 的 sub 必須是真實存在的帳號）"""
     with SessionLocal() as db:
         return db.execute(text("SELECT user_id FROM UserAccount WHERE username = :u"), {"u": username}).scalar_one()
 

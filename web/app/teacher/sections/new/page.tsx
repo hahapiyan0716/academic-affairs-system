@@ -15,14 +15,17 @@ import { semesterLabel } from "@/lib/labels";
 import type { CourseBrief, Room, Section, Semester } from "@/types";
 import SlotGrid from "./slot-grid";
 
+/** 新增開課：填寫班級資訊並在格狀圖上點選上課時段 */
 export default function NewSectionPage() {
   const router = useRouter();
+  // 表單所需的資料各自讀取；只有 me（開課權限）決定是否顯示表單，因此只等待它載入
   const { data: me, loading } = useApi<{ teacher_id: string; can_open_section: boolean }>("/api/teacher/me");
   const { data: semesters } = useApi<Semester[]>("/api/semesters");
   const { data: courses } = useApi<CourseBrief[]>("/api/courses");
   const { data: rooms } = useApi<Room[]>("/api/rooms");
   const { data: teachers } = useApi<{ teacher_id: string; teacher_name: string }[]>("/api/teachers");
 
+  // 只列出可開課的學期（與後端 section_service 的 OPENABLE 一致）
   const openable = useMemo(
     () => semesters?.filter((s) => s.status === "Planning" || s.status === "Enrolling") ?? [],
     [semesters],
@@ -32,11 +35,14 @@ export default function NewSectionPage() {
   const [courseNo, setCourseNo] = useState("");
   const [sectionCode, setSectionCode] = useState("01");
   const [capacity, setCapacity] = useState("50");
+  // 所有時段共用同一間教室（後端 API 允許每個時段不同教室，此畫面簡化為一間）
   const [room, setRoom] = useState("");
   const [coTeachers, setCoTeachers] = useState<string[]>([]);
+  // 已選時段，元素格式為 "星期-節次"（例如 "4-5"）
   const [slots, setSlots] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
 
+  // 提前 return 必須放在所有 Hook 之後，否則 Hook 的呼叫順序會隨狀態改變
   if (loading) return <LoadingState />;
   if (!me?.can_open_section) {
     return (
@@ -47,8 +53,10 @@ export default function NewSectionPage() {
     );
   }
 
+  /** 選取／取消某個時段 */
   function toggleSlot(key: string) {
     setSlots((prev) => {
+      // 複製一份新的 Set：直接修改 prev 不會改變參考，React 不會重新渲染
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -56,8 +64,10 @@ export default function NewSectionPage() {
     });
   }
 
+  /** 送出開課；衝堂、教室衝突等規則由後端檢查，失敗時顯示後端訊息 */
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    // Select 元件不支援原生的 required 驗證，這裡手動檢查
     if (!semesterId || !courseNo || !room) return toast.error("請選擇學期、課程與教室");
     if (slots.size === 0) return toast.error("請至少選擇一個上課時段");
     setSubmitting(true);
@@ -80,6 +90,7 @@ export default function NewSectionPage() {
       router.push("/teacher");
     } catch (err) {
       toast.error((err as Error).message);
+      // 只在失敗時解除送出狀態；成功時即將換頁，保持按鈕停用以免重複開課
       setSubmitting(false);
     }
   }
@@ -164,6 +175,7 @@ export default function NewSectionPage() {
             <div className="grid gap-1.5">
               <Label>合授教師（選填）</Label>
               <div className="grid grid-cols-2 gap-2 rounded-md border p-3">
+                {/* 排除自己：開課者本人自動成為主授教師 */}
                 {teachers
                   ?.filter((t) => t.teacher_id !== me.teacher_id)
                   .map((t) => (

@@ -20,7 +20,7 @@ from app.db import engine
 from app.models import Role, Student, Teacher, TeacherPermissionLog, UserAccount
 from app.services.auth_service import hash_password
 
-SERVICE_DIR = Path(__file__).resolve().parent.parent
+SERVICE_DIR = Path(__file__).resolve().parent.parent  # api/
 SEED_SQL = Path(__file__).resolve().parent / "seed.sql"
 
 
@@ -28,19 +28,24 @@ def split_sql_statements(sql: str) -> list[str]:
     """去除 -- 註解後以「行尾分號」切分成單一敘述（seed.sql 的字串內不含分號與 --）"""
     lines = [line.split("--", 1)[0].rstrip() for line in sql.splitlines()]
     statements = "\n".join(lines).split(";\n")
+    # 去掉空白與最後一個敘述殘留的分號，並略過空敘述（例如只有註解的區塊）
     return [s.strip().rstrip(";").strip() for s in statements if s.strip().rstrip(";").strip()]
 
 
 def reset_schema() -> None:
+    """以 Alembic 刪除全部資料表再重建（等同 alembic downgrade base → upgrade head）"""
     cfg = Config(str(SERVICE_DIR / "alembic.ini"))
     command.downgrade(cfg, "base")
     command.upgrade(cfg, "head")
 
 
 def seed(password: str) -> None:
+    """寫入種子資料；所有帳號共用同一個初始密碼"""
     statements = split_sql_statements(SEED_SQL.read_text(encoding="utf-8"))
+    # bcrypt 刻意設計得慢，所有帳號共用同一組雜湊，只需計算一次
     password_hash = hash_password(password)
 
+    # db.begin()：區塊正常結束時 commit，中途出錯（含 sys.exit）則整批 rollback
     with Session(engine) as db, db.begin():
         if db.scalar(select(UserAccount.user_id).limit(1)) is not None:
             sys.exit("資料庫已有帳號資料；若要重建請使用 python -m seed --reset")
@@ -52,6 +57,7 @@ def seed(password: str) -> None:
         admin = UserAccount(username="admin", password_hash=password_hash, role=Role.Admin)
         db.add(admin)
 
+        # 教師帳號 = 教師代碼、學生帳號 = 學號；透過 relationship 指派，flush 時自動寫入 user_id
         teachers = db.scalars(select(Teacher).order_by(Teacher.teacher_id)).all()
         for t in teachers:
             t.user = UserAccount(username=t.teacher_id, password_hash=password_hash, role=Role.Teacher)
@@ -70,6 +76,7 @@ def seed(password: str) -> None:
 
 
 def main() -> None:
+    """解析命令列參數；需要重建時先 reset_schema 再寫入種子資料"""
     parser = argparse.ArgumentParser(prog="python -m seed", description="寫入種子資料")
     parser.add_argument("--reset", action="store_true", help="先清空並重建資料庫結構")
     args = parser.parse_args()

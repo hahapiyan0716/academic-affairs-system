@@ -7,14 +7,17 @@ from app.models import Section, SectionSchedule, SectionStatus, SectionTeacher, 
 
 
 def get(db: Session, teacher_id: str, *, lock: bool = False) -> Teacher | None:
+    """依教師代碼取得教師；lock=True 時以 SELECT ... FOR UPDATE 鎖定該列"""
     return db.get(Teacher, teacher_id, with_for_update=lock)
 
 
 def add(db: Session, teacher: Teacher) -> None:
+    """加入 Session；實際寫入在 service commit 時"""
     db.add(teacher)
 
 
 def list_brief(db: Session) -> list[Teacher]:
+    """全部教師（不載入關聯），供下拉選單等簡單列表使用"""
     return list(db.scalars(select(Teacher).order_by(Teacher.teacher_id)))
 
 
@@ -33,18 +36,22 @@ def list_with_permission_logs(db: Session) -> list[Teacher]:
 
 
 def find_existing_ids(db: Session, teacher_ids: list[str]) -> set[str]:
+    """傳入的教師代碼中，實際存在於資料庫的那些"""
     return set(db.scalars(select(Teacher.teacher_id).where(Teacher.teacher_id.in_(teacher_ids))))
 
 
 def count_with_permission(db: Session) -> int:
+    """擁有開課權限的教師數"""
     return db.scalar(select(func.count()).select_from(Teacher).where(Teacher.can_open_section.is_(True))) or 0
 
 
 def add_permission_log(db: Session, log: TeacherPermissionLog) -> None:
+    """新增一筆開課權限異動稽核紀錄"""
     db.add(log)
 
 
 def list_permission_logs(db: Session, teacher_id: str) -> list[TeacherPermissionLog]:
+    """某教師的權限異動紀錄，新的在前；同一秒內的多筆以 log_id 決定先後"""
     return list(
         db.scalars(
             select(TeacherPermissionLog)

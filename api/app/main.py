@@ -31,4 +31,5 @@ app.include_router(student.router)
 
 @app.get("/health", tags=["health"])
 def health():
+    """健康檢查：只確認 process 存活，不查資料庫"""
     return {"status": "ok"}

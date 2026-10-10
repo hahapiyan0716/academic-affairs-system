@@ -10,9 +10,11 @@ import { useApi } from "@/lib/api";
 import { COURSE_TYPE, compactSchedule, semesterLabel } from "@/lib/labels";
 import type { HistorySection } from "@/types";
 
+/** 歷年開課紀錄：依課名／課號與教師姓名搜尋跨學期的開課資料 */
 export default function HistoryPage() {
   const [q, setQ] = useState("");
   const [teacher, setTeacher] = useState("");
+  // 搜尋條件改變 → path 改變 → useApi 自動重新請求
   const params = new URLSearchParams();
   if (q.trim()) params.set("q", q.trim());
   if (teacher.trim()) params.set("teacher", teacher.trim());
@@ -59,6 +61,7 @@ export default function HistoryPage() {
                     </TableCell>
                     <TableCell>{COURSE_TYPE[s.course_type]}</TableCell>
                     <TableCell>{s.teacher_names}</TableCell>
+                    {/* 停開的班級時段已被刪除（釋放教室），改顯示「已停開」 */}
                     <TableCell className="text-sm">
                       {s.status === "Cancelled" ? <Badge variant="outline">已停開</Badge> : compactSchedule(s.schedule_text)}
                     </TableCell>

@@ -3,8 +3,9 @@
 import { WEEKDAYS } from "@/lib/labels";
 import type { Timetable, TimetableSlot } from "@/types";
 
+// 顯示星期一到星期六；星期日（7）的時段不會出現在格狀圖中
 const DAYS = [1, 2, 3, 4, 5, 6];
-// 依課號給予固定色系，同一門課在課表上顏色一致
+// 依班級在清單中的順序給予固定色系，同一門課在課表上顏色一致
 const PALETTE = [
   "bg-sky-100 text-sky-900 border-sky-200",
   "bg-emerald-100 text-emerald-900 border-emerald-200",
@@ -16,9 +17,11 @@ const PALETTE = [
 
 /** 週課表格狀圖：至少顯示到第 8 節，有更晚的課就延伸 */
 export default function TimetableGrid({ timetable }: { timetable: Timetable }) {
+  // 以 "星期-節次" 為鍵建立查表，渲染每一格時可直接取得該時段的課
   const grid = new Map<string, TimetableSlot>();
   timetable.slots.forEach((s) => grid.set(`${s.weekday}-${s.period}`, s));
   const maxPeriod = Math.max(8, ...timetable.slots.map((s) => s.period));
+  // 超過色盤數量時循環使用
   const colorOf = (sectionId: number) =>
     PALETTE[timetable.sections.findIndex((s) => s.section_id === sectionId) % PALETTE.length];
 

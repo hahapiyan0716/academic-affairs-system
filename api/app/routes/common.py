@@ -17,26 +17,33 @@ from app.services import course_service, section_service, semester_service, teac
 router = APIRouter(prefix="/api", tags=["common"])
 
 DB = Annotated[Session, Depends(get_db)]
+# 搜尋關鍵字：限制長度，避免過長字串造成昂貴的 LIKE 查詢
 Keyword = Annotated[str | None, Query(max_length=30)]
+
+# 參數 `_: AnyUser` 只用來要求登入，函式本身不需要登入者資訊
 
 
 @router.get("/semesters", response_model=list[SemesterOut])
 def list_semesters(_: AnyUser, db: DB):
+    """全部學期，新學期在前"""
     return semester_service.list_semesters(db)
 
 
 @router.get("/rooms", response_model=list[RoomOut])
 def list_rooms(_: AnyUser, db: DB):
+    """全部教室與所在大樓"""
     return section_service.list_rooms(db)
 
 
 @router.get("/courses", response_model=list[CourseOut])
 def list_courses(_: AnyUser, db: DB):
+    """啟用中的課程"""
     return course_service.list_active(db)
 
 
 @router.get("/teachers", response_model=list[TeacherBriefOut])
 def list_teachers(_: AnyUser, db: DB):
+    """全部教師的代碼與姓名"""
     return teacher_service.list_brief(db)
 
 

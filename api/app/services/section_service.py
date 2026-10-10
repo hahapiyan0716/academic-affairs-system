@@ -39,11 +39,13 @@ from app.services.enrollment_service import format_slot
 from app.services.semester_service import resolve_semester
 from app.session import CurrentUser
 
-OPENABLE = (SemesterStatus.Planning, SemesterStatus.Enrolling)
-GRADABLE = (SemesterStatus.InProgress, SemesterStatus.Finished)
+# 學期狀態 → 允許的操作
+OPENABLE = (SemesterStatus.Planning, SemesterStatus.Enrolling)  # 可開課、可修改班級設定
+GRADABLE = (SemesterStatus.InProgress, SemesterStatus.Finished)  # 可登分
 
 
 def get_detail(db: Session, section_id: int) -> SectionDetailView:
+    """取得班級明細（v_section_detail），不存在時 404"""
     view = section_repository.get_detail(db, section_id)
     if view is None:
         raise NotFoundError("找不到開課班級")
@@ -64,6 +66,7 @@ def _get_owned(db: Session, teacher_id: str, section_id: int, *, lock: bool = Fa
 
 
 def list_rooms(db: Session) -> list[RoomOut]:
+    """全部教室與所在大樓"""
     return [
         RoomOut(room_code=code, building_name=building, seat_capacity=seats)
         for code, building, seats in room_repository.list_with_building(db)
@@ -78,13 +81,16 @@ def browse(db: Session, user: CurrentUser, semester_id: str | None, keyword: str
     if user.role != "Student" or not user.student_id or not result:
         return result
 
+    # 以三次批次查詢取得所需資料，再於記憶體中比對，避免每個班級各查一次資料庫
     my_status = enrollment_repository.statuses_for_sections(db, user.student_id, [s.section_id for s in result])
     busy = enrollment_repository.busy_slots(db, user.student_id, semester.semester_id)
     slots = section_repository.slots_by_section(db, semester.semester_id)
     for s in result:
         status = my_status.get(s.section_id)
         s.my_status = str(status) if status else None
+        # 已選上的班級本身就佔用 busy 中的時段，不能算成與自己衝堂
         is_mine = status in ACTIVE_ENROLLMENT
+        # 集合交集非空 → 有任一（星期, 節次）重疊
         s.conflict = not is_mine and bool(slots[s.section_id] & busy)
     return result
 
@@ -98,6 +104,7 @@ def history(db: Session, course_no: str | None, teacher: str | None, keyword: st
 
 
 def list_my_sections(db: Session, teacher_id: str, semester_id: str | None) -> list[SectionDetailView]:
+    """教師自己授課（含合授）的班級；不指定學期則列出歷年全部"""
     return section_repository.list_teacher_details(db, teacher_id, semester_id)
 
 
@@ -107,6 +114,7 @@ def list_my_sections(db: Session, teacher_id: str, semester_id: str | None) -> l
 
 
 def create_section(db: Session, teacher_id: str, data: SectionCreate) -> Section:
+    """教師開課：依序檢查權限、學期、課程、教室與教師是否存在、教師衝堂、教室衝突，全部通過才寫入"""
     # 1. 開課權限：每次都查資料庫，管理員收回權限後立即生效（不信任 JWT 內的舊資訊）
     teacher = teacher_repository.get(db, teacher_id)
     if teacher is None or not teacher.can_open_section:
@@ -122,10 +130,12 @@ def create_section(db: Session, teacher_id: str, data: SectionCreate) -> Section
     if course is None or not course.is_active:
         raise NotFoundError("課程不存在或已停用")
 
+    # 集合差集：請求中有、資料庫中沒有的教室代碼
     room_codes = {s.room_code for s in data.slots}
     if missing := room_codes - room_repository.find_existing_codes(db, room_codes):
         raise NotFoundError(f"教室不存在：{', '.join(sorted(missing))}")
 
+    # 合授教師：dict.fromkeys 去除重複並保留原順序，再排除開課者本人（本人已是主授教師）
     co_ids = [t for t in dict.fromkeys(data.co_teacher_ids) if t != teacher_id]
     if co_ids and (missing := set(co_ids) - teacher_repository.find_existing_ids(db, co_ids)):
         raise NotFoundError(f"教師不存在：{', '.join(sorted(missing))}")
@@ -146,6 +156,7 @@ def create_section(db: Session, teacher_id: str, data: SectionCreate) -> Section
         room, w, p = occupied
         raise ConflictError(f"教室 {room} 在{format_slot(w, p)}已被使用")
 
+    # 班級、授課教師、上課時段透過 relationship 一起加入 Session，在同一次 commit 中寫入
     section = Section(
         course_no=data.course_no,
         semester_id=data.semester_id,
@@ -162,6 +173,8 @@ def create_section(db: Session, teacher_id: str, data: SectionCreate) -> Section
     try:
         db.commit()
     except IntegrityError as exc:
+        # 上面的檢查與 commit 之間，其他請求可能搶先寫入；此時由資料庫的 UNIQUE 約束擋下，
+        # 依約束名稱轉成友善訊息，其他約束錯誤則往上拋給 error_handler
         db.rollback()
         msg = str(exc.orig)
         if "uq_room_timeslot" in msg:
@@ -173,6 +186,8 @@ def create_section(db: Session, teacher_id: str, data: SectionCreate) -> Section
 
 
 def update_section(db: Session, teacher_id: str, section_id: int, data: SectionUpdate) -> Section:
+    """修改人數上限或停開；只有開課期間可改"""
+    # 鎖定班級列：與加選共用同一把鎖，確保計算已選人數時不會有人同時加選
     section = _get_owned(db, teacher_id, section_id, lock=True)
     semester = semester_repository.get(db, section.semester_id)
     if semester is None or semester.status not in OPENABLE:
@@ -213,6 +228,7 @@ def get_roster(db: Session, teacher_id: str, section_id: int) -> RosterOut:
 
 
 def update_grades(db: Session, teacher_id: str, user_id: int, section_id: int, data: GradesUpdate) -> GradesResult:
+    """批次登分：只寫入有變動的成績，每筆變動都留下稽核紀錄；任一學生不在名單中則整批不寫入"""
     section = _get_owned(db, teacher_id, section_id)
     semester = semester_repository.get(db, section.semester_id)
     if semester is None or semester.status not in GRADABLE:
@@ -226,6 +242,7 @@ def update_grades(db: Session, teacher_id: str, user_id: int, section_id: int, d
     updated = 0
     for g in data.grades:
         enrollment = rows[g.student_id]
+        # 統一成一位小數再比較，讓 85 與 85.0 視為相同
         new_score = None if g.score is None else Decimal(g.score).quantize(Decimal("0.1"))
         if enrollment.score == new_score:
             continue

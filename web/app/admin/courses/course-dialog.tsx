@@ -10,16 +10,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { api } from "@/lib/api";
 import type { AdminCourse } from "@/types";
 
+// 表單狀態一律存字串（與 <input> 的值一致），送出時才轉成 API 需要的型別
 type FormState = {
   course_no: string;
   course_name: string;
   course_type: "Required" | "Elective";
   credit: string;
-  fields: string;
+  fields: string; // 多個領域以分隔符號串成一個字串
 };
 
 const EMPTY: FormState = { course_no: "", course_name: "", course_type: "Elective", credit: "3", fields: "" };
 
+/** 新增／編輯課程的對話框；course 為 null 時是新增模式 */
 export default function CourseDialog({
   course,
   onClose,
@@ -29,6 +31,7 @@ export default function CourseDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  // 初始值只在元件掛載時使用一次；父元件在關閉時卸載本元件，因此每次開啟都會重新帶入
   const [form, setForm] = useState<FormState>(
     course
       ? {
@@ -47,12 +50,14 @@ export default function CourseDialog({
       course_name: form.course_name,
       course_type: form.course_type,
       credit: Number(form.credit),
+      // 接受頓號、半形／全形逗號與空白作為分隔
       fields: form.fields
         .split(/[、,，\s]+/)
         .map((s) => s.trim())
         .filter(Boolean),
     };
     try {
+      // 課號只在新增時送出；編輯時課號不可修改
       if (course) {
         await api(`/api/admin/courses/${course.course_no}`, { method: "PATCH", json: body });
       } else {
@@ -66,6 +71,7 @@ export default function CourseDialog({
   }
 
   return (
+    // 對話框是否顯示由父元件決定（是否渲染本元件），這裡固定 open，關閉時通知父元件
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>

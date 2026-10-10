@@ -8,14 +8,17 @@ from app.models import Course, Student, Teacher, TeacherPermissionLog, UserAccou
 
 
 def test_non_admin_forbidden(client_as):
+    """學生與教師呼叫管理員 API 一律 403"""
     for username, role in (("S001", "Student"), ("T001", "Teacher")):
         assert client_as(username, role=role).get("/api/admin/users").status_code == 403
 
 
 def test_permission_toggle_writes_audit_log(client_as):
+    """切換開課權限時寫入一筆稽核紀錄，教師列表的 latest_log 也隨之更新"""
     admin = client_as("admin", role="Admin")
     with SessionLocal() as db:
         before = db.get_one(Teacher, "T005").can_open_section
+        # 記下目前最大的 log_id，之後只檢查與清除本測試新增的紀錄
         max_log = db.scalar(select(func.max(TeacherPermissionLog.log_id))) or 0
 
     try:
@@ -37,6 +40,7 @@ def test_permission_toggle_writes_audit_log(client_as):
 
 
 def test_validation_error(client_as):
+    """請求內容型別錯誤時由 FastAPI 回 422"""
     res = client_as("admin", role="Admin").patch(
         "/api/admin/teachers/T005/permission", json={"can_open_section": "maybe"}
     )
@@ -44,6 +48,7 @@ def test_validation_error(client_as):
 
 
 def test_cannot_deactivate_self(client_as):
+    """管理員不可停用自己的帳號"""
     admin = client_as("admin", role="Admin")
     with SessionLocal() as db:
         admin_id = db.scalar(select(UserAccount.user_id).where(UserAccount.username == "admin"))
@@ -51,6 +56,7 @@ def test_cannot_deactivate_self(client_as):
 
 
 def test_duplicate_course_conflict(client_as):
+    """課號重複時由資料庫的主鍵約束擋下，轉成 409"""
     res = client_as("admin", role="Admin").post(
         "/api/admin/courses",
         json={"course_no": "A0001", "course_name": "重複", "course_type": "Elective", "credit": 2},
@@ -104,4 +110,5 @@ def test_update_course_fields_keeps_existing(client_as):
 
 @pytest.mark.parametrize("path", ["/api/admin/stats", "/api/admin/semesters", "/api/admin/courses", "/api/admin/departments"])
 def test_admin_read_endpoints(client_as, path):
+    """唯讀 API 的冒煙測試：確認能正常回應"""
     assert client_as("admin", role="Admin").get(path).status_code == 200

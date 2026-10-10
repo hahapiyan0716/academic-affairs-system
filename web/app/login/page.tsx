@@ -9,8 +9,10 @@ import { Label } from "@/components/ui/label";
 import { api, hardNavigate } from "@/lib/api";
 import type { SessionUser } from "@/types";
 
+// 內容與 lib/session.ts 的 ROLE_HOME 相同，修改時需同步
 const ROLE_HOME = { Admin: "/admin", Teacher: "/teacher", Student: "/student" } as const;
 
+/** 登入頁：登入成功後導向原本要去的頁面，或該角色的首頁 */
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -26,12 +28,14 @@ export default function LoginPage() {
         method: "POST",
         json: { username, password },
       });
+      // next 由 proxy.ts 在導向登入頁時帶入
       const next = new URLSearchParams(window.location.search).get("next");
       const home = ROLE_HOME[user.role];
       // 只接受自己角色底下的站內路徑，避免開放式重新導向（Open Redirect）
       hardNavigate(next && next.startsWith(`${home}/`) ? next : home);
     } catch (err) {
       setError((err as Error).message);
+      // 只在失敗時解除送出狀態；成功時頁面即將整頁跳轉，保持按鈕停用以免重複送出
       setSubmitting(false);
     }
   }

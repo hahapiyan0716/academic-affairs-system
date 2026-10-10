@@ -12,11 +12,13 @@ PASSWORD = get_settings().seed_password
 
 @pytest.fixture(scope="module", autouse=True)
 def _require_seed_password() -> None:
+    """本檔的測試需要以種子帳號實際登入；未設定密碼時整個模組跳過"""
     if not PASSWORD:
         pytest.skip("需要在 .env 設定 SEED_PASSWORD 才能測試登入")
 
 
 def login(username: str) -> TestClient:
+    """走正式登入流程，回傳已帶 cookie 的 client（TestClient 會自動保存回應的 cookie）"""
     client = TestClient(app)
     res = client.post("/api/auth/login", json={"username": username, "password": PASSWORD})
     assert res.status_code == 200, res.text
@@ -24,6 +26,7 @@ def login(username: str) -> TestClient:
 
 
 def test_login_sets_secure_cookie_without_exposing_token():
+    """登入回傳使用者資訊，JWT 只放在 HttpOnly + SameSite 的 cookie 中"""
     res = TestClient(app).post("/api/auth/login", json={"username": "S001", "password": PASSWORD})
     assert res.status_code == 200
     assert res.json()["user"] == {
@@ -56,6 +59,7 @@ def test_overlong_password_is_rejected_not_crashing():
 
 
 def test_unauthenticated_and_tampered_token():
+    """沒有 cookie、或 token 使用 alg=none 偽造時，一律 401"""
     client = TestClient(app)
     assert client.get("/api/auth/me").status_code == 401
     client.cookies.set("access_token", "eyJhbGciOiJub25lIn0.e30.")  # alg=none
@@ -63,12 +67,14 @@ def test_unauthenticated_and_tampered_token():
 
 
 def test_me_returns_current_user():
+    """/me 回傳 JWT 中的身分（教師帳號帶有 teacher_id）"""
     res = login("T001").get("/api/auth/me")
     assert res.json()["user"]["teacher_id"] == "T001"
     assert res.json()["user"]["role"] == "Teacher"
 
 
 def test_logout_clears_cookie():
+    """登出後 cookie 被清除，再呼叫 /me 回 401"""
     client = login("S001")
     res = client.post("/api/auth/logout")
     assert res.status_code == 204
@@ -77,10 +83,12 @@ def test_logout_clears_cookie():
 
 
 def test_login_rate_limited():
+    """用完登入次數後，即使密碼正確也回 429，並附 Retry-After 標頭"""
     login_limiter.reset()
     client = TestClient(app)
     for _ in range(login_limiter.limit):
         client.post("/api/auth/login", json={"username": "nobody", "password": "x"})
+    # 第 limit + 1 次
     res = client.post("/api/auth/login", json={"username": "S001", "password": PASSWORD})
     assert res.status_code == 429
     assert "Retry-After" in res.headers

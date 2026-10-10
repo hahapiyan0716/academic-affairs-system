@@ -15,6 +15,7 @@ export default function SectionSettings({ section, onChanged }: { section: Secti
   const [capacityEdit, setCapacityEdit] = useState<string | null>(null);
   const capacity = capacityEdit ?? String(section.capacity);
 
+  /** 送出班級修改，成功後清除輸入中的值並通知父元件重新讀取 */
   async function patchSection(body: object, msg: string) {
     try {
       await api(`/api/teacher/sections/${section.section_id}`, { method: "PATCH", json: body });
@@ -45,6 +46,7 @@ export default function SectionSettings({ section, onChanged }: { section: Secti
         <Button variant="outline" onClick={() => patchSection({ capacity: Number(capacity) }, "人數上限已更新")}>
           更新上限
         </Button>
+        {/* 已有學生選修時停用按鈕；後端同樣會拒絕 */}
         <Button
           variant="destructive"
           className="ml-auto"

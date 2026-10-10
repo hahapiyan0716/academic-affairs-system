@@ -15,6 +15,7 @@ from app.services.semester_service import to_admin_out
 
 
 def get_stats(db: Session) -> StatsOut:
+    """帳號數、有開課權限的教師數、在學學生數、啟用課程數，以及目前學期與其開班數"""
     current = semester_repository.get_current(db)
     return StatsOut(
         users=user_repository.count(db),

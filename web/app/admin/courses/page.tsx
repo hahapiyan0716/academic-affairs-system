@@ -14,10 +14,13 @@ import { COURSE_TYPE } from "@/lib/labels";
 import type { AdminCourse } from "@/types";
 import CourseDialog from "./course-dialog";
 
+/** 課程庫管理：列表、新增、編輯、停用／啟用 */
 export default function CoursesPage() {
   const { data, error, loading, reload } = useApi<AdminCourse[]>("/api/admin/courses");
+  // 編輯中的課程："new" = 新增、物件 = 編輯該課程、null = 對話框關閉
   const [editing, setEditing] = useState<AdminCourse | "new" | null>(null);
 
+  /** 切換課程啟用狀態，成功後重新讀取列表 */
   async function toggleActive(c: AdminCourse) {
     try {
       await api(`/api/admin/courses/${c.course_no}`, { method: "PATCH", json: { is_active: !c.is_active } });
@@ -38,6 +41,7 @@ export default function CoursesPage() {
       </PageHeader>
       <Card>
         <CardContent className="p-0">
+          {/* 只在第一次載入時顯示載入中；reload 時保留舊資料，避免表格閃爍 */}
           {loading && !data ? (
             <LoadingState />
           ) : error ? (
@@ -92,6 +96,7 @@ export default function CoursesPage() {
           )}
         </CardContent>
       </Card>
+      {/* 關閉時卸載對話框，下次開啟會以新的 course 重新初始化表單 */}
       {editing && (
         <CourseDialog
           course={editing === "new" ? null : editing}
