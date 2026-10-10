@@ -48,6 +48,7 @@ export default function TimetablePage() {
                   <TableRow>
                     <TableHead>課程</TableHead>
                     <TableHead>類型</TableHead>
+                    <TableHead>領域</TableHead>
                     <TableHead className="text-right">學分</TableHead>
                     <TableHead>授課教師</TableHead>
                     <TableHead>時段（教室）</TableHead>
@@ -63,6 +64,7 @@ export default function TimetablePage() {
                         </span>
                       </TableCell>
                       <TableCell>{COURSE_TYPE[s.course_type]}</TableCell>
+                      <TableCell className="text-sm">{s.field_names ?? "—"}</TableCell>
                       <TableCell className="text-right tabular-nums">{s.credit}</TableCell>
                       <TableCell>{s.teacher_names}</TableCell>
                       <TableCell className="text-sm">{compactSchedule(s.schedule_text)}</TableCell>

@@ -23,9 +23,9 @@ uvicorn app.main:app --reload --port 8000
 | `POST /api/auth/login` | | 登入；成功時回應帶 `Set-Cookie: access_token=…`（httpOnly）；同一 IP 15 分鐘最多 20 次 |
 | `POST /api/auth/logout` | | 登出；清掉 cookie |
 | `GET /api/auth/me` | ✅ | 目前登入者 |
-| `GET /api/semesters`、`/api/rooms`、`/api/courses`、`/api/teachers` | ✅ | 下拉選單用的基礎資料 |
-| `GET /api/sections?semester_id=&q=` | ✅ | 某學期（預設目前學期）的開放班級；學生會多得到選課狀態與衝堂標記 |
-| `GET /api/history/sections?course_no=&teacher=&q=` | ✅ | 歷年開課紀錄（含修課人數、平均成績） |
+| `GET /api/semesters`、`/api/rooms`、`/api/courses`、`/api/teachers`、`/api/fields` | ✅ | 下拉選單用的基礎資料（`/api/fields` 為課程領域清單） |
+| `GET /api/sections?semester_id=&q=&field=` | ✅ | 某學期（預設目前學期）的開放班級，`field` 依課程領域篩選；學生會多得到選課狀態與衝堂標記 |
+| `GET /api/history/sections?course_no=&teacher=&q=&field=` | ✅ | 歷年開課紀錄（含修課人數、平均成績） |
 | `GET /api/teacher/me`、`GET POST /api/teacher/sections` | ✅ 教師 | 教師資料、我的開課、新增開課 |
 | `PATCH /api/teacher/sections/{id}` | ✅ 教師 | 調整人數上限、停開 |
 | `GET /api/teacher/sections/{id}/roster`、`PUT …/grades` | ✅ 教師 | 修課名單、批次登分 |
@@ -59,9 +59,10 @@ app\
 ├─ repositories\      資料存取（所有 SQL 查詢，含 SELECT ... FOR UPDATE）
 ├─ schemas\           Pydantic 請求與回應模型，依領域分檔
 └─ migration_support.py  Alembic 在 Windows MySQL 上的表名大小寫修正
-migrations\           Alembic：env.py 與 versions\（0001_init：15 張表、CHECK 約束、2 個 View）
+migrations\           Alembic：env.py 與 versions\（0001_init：15 張表、CHECK 約束、2 個 View；
+                      0002_field_names：View 加入課程領域欄位）
 seed\                 seed.sql（種子資料）與 python -m seed
-tests\                pytest（35 項）
+tests\                pytest（38 項）
 database\             schema.generated.sql（完整建表 SQL，閱讀用）、sql-examples.sql（SQL 操作範例）、
                       Relational Database Schema.png（現行結構的關聯綱要圖）
 database\original-design\  專案一開始的 3NF 設計（ER 圖、關聯綱要、原始資料 xlsx），非現行結構
@@ -80,7 +81,7 @@ database\original-design\  專案一開始的 3NF 設計（ER 圖、關聯綱要
 ## 測試
 
 ```powershell
-pytest                                                    # 全部 35 項
+pytest                                                    # 全部 38 項
 pytest tests/test_enrollment.py::test_full_section_rejected   # 單一測試
 ```
 

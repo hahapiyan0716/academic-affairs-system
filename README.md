@@ -103,7 +103,7 @@ npm run dev
 ```powershell
 Set-Location api
 conda activate academic_system
-pytest            # 35 項，含 8 人同時搶 3 個名額的併發測試
+pytest            # 38 項，含 8 人同時搶 3 個名額的併發測試
 ```
 
 測試連線至 `api\.env` 設定的資料庫：選課與開課測試只在專用的測試學期 `9991` 中建立與刪除資料，管理員測試會還原自己造成的變更。

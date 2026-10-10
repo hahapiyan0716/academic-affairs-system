@@ -36,6 +36,7 @@ export interface Section {
   teacher_names: string | null;
   schedule_text: string | null;
   enrolled_count: number;
+  field_names: string | null;
 }
 
 export interface BrowseSection extends Section {
@@ -86,6 +87,7 @@ export interface TranscriptRow {
   status: string;
   score: string | null;
   passed: number | null;
+  field_names: string | null;
 }
 
 export interface Transcript {

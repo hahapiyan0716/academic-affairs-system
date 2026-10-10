@@ -3,10 +3,28 @@
 from collections import defaultdict
 from decimal import Decimal
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, exists, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import ACTIVE_ENROLLMENT, Enrollment, Section, SectionDetailView, SectionSchedule, SectionTeacher
+from app.models import (
+    ACTIVE_ENROLLMENT,
+    CurriculumField,
+    Enrollment,
+    Section,
+    SectionDetailView,
+    SectionSchedule,
+    SectionTeacher,
+)
+
+
+def _has_field(field: str) -> ColumnElement[bool]:
+    """
+    班級的課程屬於指定領域（精確比對，不用 field_names LIKE，避免「資料」誤中「資料科學」）。對應 SQL：
+      EXISTS (SELECT 1 FROM CurriculumField cf WHERE cf.course_no = v.course_no AND cf.field_name = :field)
+    """
+    return exists().where(
+        CurriculumField.course_no == SectionDetailView.course_no, CurriculumField.field_name == field
+    )
 
 
 def get_detail(db: Session, section_id: int) -> SectionDetailView | None:
@@ -38,8 +56,10 @@ def count(db: Session, semester_id: str) -> int:
     return db.scalar(select(func.count()).select_from(Section).where(Section.semester_id == semester_id)) or 0
 
 
-def list_open_details(db: Session, semester_id: str, keyword: str | None) -> list[SectionDetailView]:
-    """某學期開放中的班級，可依課名、課號、教師姓名搜尋"""
+def list_open_details(
+    db: Session, semester_id: str, keyword: str | None, field: str | None = None
+) -> list[SectionDetailView]:
+    """某學期開放中的班級，可依課名、課號、教師姓名搜尋，並依課程領域篩選"""
     stmt = select(SectionDetailView).where(
         SectionDetailView.semester_id == semester_id,
         SectionDetailView.status == "Open",
@@ -53,6 +73,8 @@ def list_open_details(db: Session, semester_id: str, keyword: str | None) -> lis
                 SectionDetailView.teacher_names.like(like),
             )
         )
+    if field:
+        stmt = stmt.where(_has_field(field))
     return list(db.scalars(stmt.order_by(SectionDetailView.course_no, SectionDetailView.section_code)))
 
 
@@ -69,7 +91,12 @@ def list_teacher_details(db: Session, teacher_id: str, semester_id: str | None) 
 
 
 def list_history(
-    db: Session, course_no: str | None, teacher: str | None, keyword: str | None, limit: int = 500
+    db: Session,
+    course_no: str | None,
+    teacher: str | None,
+    keyword: str | None,
+    field: str | None = None,
+    limit: int = 500,
 ) -> list[tuple[SectionDetailView, Decimal | None]]:
     """
     歷年開課紀錄與平均成績。平均成績以相關子查詢計算，對應 SQL：
@@ -92,6 +119,8 @@ def list_history(
         stmt = stmt.where(
             or_(SectionDetailView.course_name.like(f"%{keyword}%"), SectionDetailView.course_no.like(f"%{keyword}%"))
         )
+    if field:
+        stmt = stmt.where(_has_field(field))
     rows = db.execute(stmt.order_by(SectionDetailView.semester_id.desc(), SectionDetailView.course_no).limit(limit))
     return [(view, avg) for view, avg in rows]
 

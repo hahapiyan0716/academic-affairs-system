@@ -70,10 +70,12 @@ def list_rooms(db: Session) -> list[RoomOut]:
     ]
 
 
-def browse(db: Session, user: CurrentUser, semester_id: str | None, keyword: str | None) -> list[BrowseSectionOut]:
+def browse(
+    db: Session, user: CurrentUser, semester_id: str | None, keyword: str | None, field: str | None = None
+) -> list[BrowseSectionOut]:
     """瀏覽某學期（預設目前學期）的開放班級；學生會額外得到自己的選課狀態與衝堂標記"""
     semester = resolve_semester(db, semester_id)
-    sections = section_repository.list_open_details(db, semester.semester_id, keyword)
+    sections = section_repository.list_open_details(db, semester.semester_id, keyword, field)
     result = [BrowseSectionOut.model_validate(s) for s in sections]
     if user.role != "Student" or not user.student_id or not result:
         return result
@@ -89,11 +91,13 @@ def browse(db: Session, user: CurrentUser, semester_id: str | None, keyword: str
     return result
 
 
-def history(db: Session, course_no: str | None, teacher: str | None, keyword: str | None) -> list[HistorySectionOut]:
+def history(
+    db: Session, course_no: str | None, teacher: str | None, keyword: str | None, field: str | None = None
+) -> list[HistorySectionOut]:
     """歷年開課紀錄：跨學期查詢某課程由哪些教師開設、修課人數與平均成績"""
     return [
         HistorySectionOut(**SectionOut.model_validate(view).model_dump(), avg_score=avg)
-        for view, avg in section_repository.list_history(db, course_no, teacher, keyword)
+        for view, avg in section_repository.list_history(db, course_no, teacher, keyword, field)
     ]
 
 

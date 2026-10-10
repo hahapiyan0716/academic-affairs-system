@@ -33,6 +33,10 @@ def list_active(db: Session) -> list[Course]:
     return course_repository.list_active(db)
 
 
+def list_field_names(db: Session) -> list[str]:
+    return course_repository.list_field_names(db)
+
+
 def list_for_admin(db: Session) -> list[AdminCourseOut]:
     """課程庫（含領域、歷年開班次數）"""
     courses = course_repository.list_with_details(db)

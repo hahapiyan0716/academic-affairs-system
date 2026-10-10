@@ -87,6 +87,40 @@ def test_browse_marks_conflict(make_section, client_as):
     assert rows[b]["conflict"] is True
 
 
+def test_browse_filters_by_field(make_section, client_as):
+    # 種子資料：A0007 演算法 ∈ 人工智慧、資料科學；A0005 統計學 ∈ 基礎知識
+    ai = make_section(course_no="A0007", slots=[(1, 2, "O313")])
+    basic = make_section(course_no="A0005", slots=[(1, 3, "O313")])
+    s001 = client_as("S001")
+
+    rows = {r["section_id"]: r for r in s001.get("/api/sections?semester_id=9991&field=人工智慧").json()}
+    assert ai in rows and basic not in rows
+    assert "人工智慧" in rows[ai]["field_names"].split("、")
+
+    # 精確比對：領域名稱的一部分不會命中
+    assert s001.get("/api/sections?semester_id=9991&field=人工").json() == []
+
+
+def test_history_filters_by_field(make_section, client_as):
+    ai = make_section(course_no="A0007", slots=[(1, 2, "O313")])
+    basic = make_section(course_no="A0005", slots=[(1, 3, "O313")])
+
+    rows = client_as("S001").get("/api/history/sections?field=人工智慧").json()
+    ids = {r["section_id"] for r in rows}
+    assert ai in ids and basic not in ids
+    assert all("人工智慧" in r["field_names"].split("、") for r in rows)
+
+
+def test_field_list_and_transcript_fields(client_as):
+    s001 = client_as("S001")
+    fields = s001.get("/api/fields").json()
+    assert "人工智慧" in fields and len(fields) == len(set(fields))
+
+    # S001 在 1132 學期有修課紀錄（種子資料）
+    rows = [r for sem in s001.get("/api/me/transcript").json()["semesters"] for r in sem["rows"]]
+    assert rows and all("field_names" in r for r in rows)
+
+
 def test_auth_required(make_section, client_as):
     from fastapi.testclient import TestClient
 

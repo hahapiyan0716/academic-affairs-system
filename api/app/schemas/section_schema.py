@@ -22,6 +22,7 @@ class SectionOut(ORMModel):
     teacher_names: str | None
     schedule_text: str | None
     enrolled_count: int
+    field_names: str | None  # 課程領域，以「、」串接
 
 
 class BrowseSectionOut(SectionOut):

@@ -246,3 +246,63 @@ WHERE e.status IN ('Selected', 'Manual');
 
 INSERT INTO alembic_version (version_num) VALUES ('0001');
 
+-- Running upgrade 0001 -> 0002
+
+CREATE OR REPLACE VIEW `v_section_detail` AS
+SELECT
+    s.section_id,
+    s.semester_id,
+    s.course_no,
+    c.course_name,
+    c.course_type,
+    c.credit,
+    s.section_code,
+    s.capacity,
+    s.status,
+    s.created_by,
+    (SELECT GROUP_CONCAT(t.teacher_name ORDER BY st.is_primary DESC, t.teacher_id SEPARATOR '、')
+       FROM `SectionTeacher` st
+       JOIN `Teacher` t ON t.teacher_id = st.teacher_id
+      WHERE st.section_id = s.section_id) AS teacher_names,
+    (SELECT GROUP_CONCAT(
+                CONCAT(ELT(ss.weekday, '一', '二', '三', '四', '五', '六', '日'), ss.period, '@', ss.room_code)
+                ORDER BY ss.weekday, ss.period SEPARATOR ',')
+       FROM `SectionSchedule` ss
+      WHERE ss.section_id = s.section_id) AS schedule_text,
+    (SELECT COUNT(*)
+       FROM `Enrollment` e
+      WHERE e.section_id = s.section_id
+        AND e.status IN ('Selected', 'Manual')) AS enrolled_count,
+    (SELECT GROUP_CONCAT(cf.field_name ORDER BY cf.field_name SEPARATOR '、')
+       FROM `CurriculumField` cf
+      WHERE cf.course_no = c.course_no) AS field_names
+FROM `Section` s
+JOIN `Course` c ON c.course_no = s.course_no;
+
+CREATE OR REPLACE VIEW `v_student_transcript` AS
+SELECT
+    e.student_id,
+    s.semester_id,
+    s.section_id,
+    c.course_no,
+    c.course_name,
+    c.course_type,
+    c.credit,
+    e.status,
+    e.score,
+    CASE
+        WHEN e.score IS NULL THEN NULL
+        WHEN e.score >= IF(st.degree = 1, 70, 60) THEN 1
+        ELSE 0
+    END AS passed,
+    (SELECT GROUP_CONCAT(cf.field_name ORDER BY cf.field_name SEPARATOR '、')
+       FROM `CurriculumField` cf
+      WHERE cf.course_no = c.course_no) AS field_names
+FROM `Enrollment` e
+JOIN `Section` s  ON s.section_id = e.section_id
+JOIN `Course` c   ON c.course_no = s.course_no
+JOIN `Student` st ON st.student_id = e.student_id
+WHERE e.status IN ('Selected', 'Manual');
+
+UPDATE alembic_version SET version_num='0002' WHERE alembic_version.version_num = '0001';
+

@@ -44,6 +44,7 @@ class TranscriptRow(ORMModel):
     status: str
     score: Decimal | None
     passed: int | None
+    field_names: str | None
 
 
 class TranscriptSemester(BaseModel):

@@ -6,6 +6,7 @@ import {
   EmptyState,
   EnrollmentBadge,
   ErrorState,
+  FieldSelect,
   LoadingState,
   PageHeader,
   SemesterStatusBadge,
@@ -23,12 +24,14 @@ const ACTIVE = ["Selected", "Manual"];
 
 export default function EnrollPage() {
   const [q, setQ] = useState("");
+  const [field, setField] = useState("");
   const [busy, setBusy] = useState<number | null>(null);
   const { data: semesters } = useApi<Semester[]>("/api/semesters");
   const current = semesters?.find((s) => s.is_current);
-  const { data, error, loading, reload } = useApi<BrowseSection[]>(
-    `/api/sections${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ""}`,
-  );
+  const params = new URLSearchParams();
+  if (q.trim()) params.set("q", q.trim());
+  if (field) params.set("field", field);
+  const { data, error, loading, reload } = useApi<BrowseSection[]>(`/api/sections?${params}`);
   const enrolling = current?.status === "Enrolling";
 
   async function act(s: BrowseSection, withdraw: boolean) {
@@ -59,6 +62,7 @@ export default function EnrollPage() {
         }
       >
         {current && <SemesterStatusBadge status={current.status} />}
+        <FieldSelect value={field} onChange={setField} />
         <Input
           placeholder="搜尋課名、課號、教師"
           value={q}
@@ -87,6 +91,7 @@ export default function EnrollPage() {
                 <TableRow>
                   <TableHead>課程</TableHead>
                   <TableHead>類型</TableHead>
+                  <TableHead>領域</TableHead>
                   <TableHead>授課教師</TableHead>
                   <TableHead>時段（教室）</TableHead>
                   <TableHead className="text-right">已選／上限</TableHead>
@@ -107,6 +112,7 @@ export default function EnrollPage() {
                         </div>
                       </TableCell>
                       <TableCell>{COURSE_TYPE[s.course_type]}</TableCell>
+                      <TableCell className="text-sm">{s.field_names ?? "—"}</TableCell>
                       <TableCell>{s.teacher_names}</TableCell>
                       <TableCell className="text-sm">{compactSchedule(s.schedule_text)}</TableCell>
                       <TableCell className="text-right tabular-nums">

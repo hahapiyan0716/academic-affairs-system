@@ -49,6 +49,7 @@ export default function TranscriptPage() {
                       <TableHead>課號</TableHead>
                       <TableHead>課名</TableHead>
                       <TableHead>類型</TableHead>
+                      <TableHead>領域</TableHead>
                       <TableHead className="text-right">學分</TableHead>
                       <TableHead className="text-right">成績</TableHead>
                       <TableHead className="text-right">結果</TableHead>
@@ -60,6 +61,7 @@ export default function TranscriptPage() {
                         <TableCell className="font-mono">{r.course_no}</TableCell>
                         <TableCell>{r.course_name}</TableCell>
                         <TableCell>{COURSE_TYPE[r.course_type]}</TableCell>
+                        <TableCell className="text-sm">{r.field_names ?? "—"}</TableCell>
                         <TableCell className="text-right tabular-nums">{r.credit}</TableCell>
                         <TableCell className="text-right tabular-nums">{r.score ?? "—"}</TableCell>
                         <TableCell className="text-right">
