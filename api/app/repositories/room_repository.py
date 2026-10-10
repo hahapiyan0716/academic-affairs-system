@@ -17,6 +17,7 @@ def list_with_building(db: Session) -> list[tuple[str, str, int | None]]:
 
 
 def find_existing_codes(db: Session, room_codes: set[str]) -> set[str]:
+    """傳入的教室代碼中，實際存在於資料庫的那些"""
     return set(db.scalars(select(Room.room_code).where(Room.room_code.in_(room_codes))))
 
 

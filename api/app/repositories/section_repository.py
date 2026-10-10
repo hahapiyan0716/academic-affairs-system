@@ -28,6 +28,7 @@ def _has_field(field: str) -> ColumnElement[bool]:
 
 
 def get_detail(db: Session, section_id: int) -> SectionDetailView | None:
+    """從 v_section_detail 取得單一班級的明細"""
     return db.get(SectionDetailView, section_id)
 
 
@@ -44,15 +45,18 @@ def get_owned(db: Session, teacher_id: str, section_id: int, *, lock: bool = Fal
         .where(Section.section_id == section_id, SectionTeacher.teacher_id == teacher_id)
     )
     if lock:
+        # of=Section：只鎖 Section 列，不鎖 JOIN 進來的 SectionTeacher
         stmt = stmt.with_for_update(of=Section)
     return db.scalar(stmt)
 
 
 def add(db: Session, section: Section) -> None:
+    """加入 Session；實際寫入在 service commit 時"""
     db.add(section)
 
 
 def count(db: Session, semester_id: str) -> int:
+    """某學期的班級數（含已停開）"""
     return db.scalar(select(func.count()).select_from(Section).where(Section.semester_id == semester_id)) or 0
 
 
@@ -65,6 +69,7 @@ def list_open_details(
         SectionDetailView.status == "Open",
     )
     if keyword:
+        # LIKE 的值以參數綁定傳入，不會造成 SQL Injection
         like = f"%{keyword}%"
         stmt = stmt.where(
             or_(
@@ -107,6 +112,7 @@ def list_history(
     avg_score = (
         select(func.round(func.avg(Enrollment.score), 1))
         .where(Enrollment.section_id == SectionDetailView.section_id, Enrollment.status.in_(ACTIVE_ENROLLMENT))
+        # correlate：子查詢中的 SectionDetailView 指向外層查詢的那一列，而不是另外 FROM 一次
         .correlate(SectionDetailView)
         .scalar_subquery()
     )

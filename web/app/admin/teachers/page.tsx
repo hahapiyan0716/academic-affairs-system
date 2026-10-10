@@ -9,9 +9,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { api, useApi } from "@/lib/api";
 import type { AdminTeacher } from "@/types";
 
+/** 教師開課權限：列出教師與最近一次權限異動，可切換授予／收回 */
 export default function TeacherPermissionPage() {
   const { data, error, loading, reload } = useApi<AdminTeacher[]>("/api/admin/teachers");
 
+  /** 切換開課權限；後端會同時寫入稽核紀錄 */
   async function toggle(t: AdminTeacher) {
     try {
       await api(`/api/admin/teachers/${t.teacher_id}/permission`, {

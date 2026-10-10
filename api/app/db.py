@@ -1,3 +1,7 @@
+"""
+資料庫連線：建立全程式共用的 engine（連線池）與 Session 工廠。
+"""
+
 from collections.abc import Iterator
 
 from sqlalchemy import create_engine
@@ -16,6 +20,8 @@ engine = create_engine(
     isolation_level="READ COMMITTED",
 )
 
+# autoflush=False：查詢前不自動送出尚未 flush 的變更，寫入時機由 service 明確控制
+# expire_on_commit=False：commit 後 ORM 物件仍可讀取屬性，回傳回應時不必再查一次資料庫
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 

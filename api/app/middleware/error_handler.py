@@ -22,18 +22,22 @@ DB_ERRORS: dict[int, tuple[int, str]] = {
 
 
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+    """業務錯誤：狀態碼取自例外類別，訊息原樣交給前端顯示"""
     headers = {"Retry-After": str(exc.retry_after)} if isinstance(exc, TooManyRequestsError) else None
     return JSONResponse({"detail": exc.message}, status_code=exc.status_code, headers=headers)
 
 
 async def db_error_handler(request: Request, exc: DBAPIError) -> JSONResponse:
+    """資料庫錯誤：PyMySQL 例外的第一個參數是 MySQL 錯誤碼，據此對照 DB_ERRORS"""
     code = exc.orig.args[0] if exc.orig is not None and exc.orig.args else None
     if code in DB_ERRORS:
         http_status, message = DB_ERRORS[code]
         return JSONResponse({"detail": message}, status_code=http_status)
+    # 非預期的資料庫錯誤（連線中斷、語法錯誤等）往上拋，由 FastAPI 回傳 500，不把內部訊息洩漏給前端
     raise exc
 
 
 def register_error_handlers(app: FastAPI) -> None:
+    """在 main.py 呼叫，向 FastAPI 註冊上面兩個錯誤處理器"""
     app.add_exception_handler(AppError, app_error_handler)  # type: ignore[arg-type]
     app.add_exception_handler(DBAPIError, db_error_handler)  # type: ignore[arg-type]

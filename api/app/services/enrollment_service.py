@@ -35,10 +35,12 @@ WEEKDAY_ZH = "一二三四五六日"
 
 
 def format_slot(weekday: int, period: int) -> str:
+    """把（星期, 節次）轉成錯誤訊息用的文字，例如 (5, 4) → "星期五第 4 節" """
     return f"星期{WEEKDAY_ZH[weekday - 1]}第 {period} 節"
 
 
 def _lock_student(db: Session, student_id: str) -> Student:
+    """鎖定學生列（取鎖順序的第一步）；找不到時 404"""
     student = student_repository.lock(db, student_id)
     if student is None:
         raise NotFoundError("找不到學生資料")
@@ -46,6 +48,7 @@ def _lock_student(db: Session, student_id: str) -> Student:
 
 
 def _lock_section(db: Session, section_id: int) -> Section:
+    """鎖定班級列（取鎖順序的第二步，必須在 _lock_student 之後呼叫）；找不到時 404"""
     section = section_repository.lock(db, section_id)
     if section is None:
         raise NotFoundError("找不到開課班級")
@@ -53,6 +56,7 @@ def _lock_section(db: Session, section_id: int) -> Section:
 
 
 def _require_enrolling(db: Session, section: Section) -> None:
+    """班級所屬學期必須處於「選課中」才能加退選"""
     semester = semester_repository.get(db, section.semester_id)
     if semester is None or semester.status != SemesterStatus.Enrolling:
         raise ConflictError("此學期目前不開放加退選")
@@ -103,6 +107,7 @@ def enroll(db: Session, student_id: str, section_id: int) -> Enrollment:
 
 def withdraw(db: Session, student_id: str, section_id: int) -> Enrollment:
     """退選：只在選課期間、且尚未有成績時允許；保留紀錄並標記為 Withdrawn"""
+    # 退選同樣依「學生 → 班級」順序取鎖，與加選一致，避免兩者交錯時 Deadlock
     _lock_student(db, student_id)
     section = _lock_section(db, section_id)
     _require_enrolling(db, section)
@@ -148,6 +153,7 @@ def transcript(db: Session, student_id: str) -> TranscriptOut:
     for r in rows:
         grouped[r.semester_id].append(r)
 
+    # dict 保留插入順序，而 rows 已依學期由新到舊排序，因此分組後的學期順序不變
     semesters = [
         TranscriptSemester(
             semester_id=sem,

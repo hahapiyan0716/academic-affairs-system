@@ -7,6 +7,7 @@ from app.models import Student, StudentStatus
 
 
 def get(db: Session, student_id: str) -> Student | None:
+    """依學號取得學生（不加鎖）"""
     return db.get(Student, student_id)
 
 
@@ -16,8 +17,10 @@ def lock(db: Session, student_id: str) -> Student | None:
 
 
 def add(db: Session, student: Student) -> None:
+    """加入 Session；實際寫入在 service commit 時"""
     db.add(student)
 
 
 def count_enrolled(db: Session) -> int:
+    """在學（Enrolled）的學生數"""
     return db.scalar(select(func.count()).select_from(Student).where(Student.status == StudentStatus.Enrolled)) or 0

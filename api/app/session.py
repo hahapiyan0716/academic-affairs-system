@@ -20,6 +20,8 @@ Role = Literal["Admin", "Teacher", "Student"]
 
 @dataclass(frozen=True)
 class CurrentUser:
+    """從 JWT 解出的登入者身分；teacher_id／student_id 只有對應角色才有值"""
+
     user_id: int
     username: str
     role: Role
@@ -40,6 +42,7 @@ class CurrentUser:
 
 
 def create_token(user: CurrentUser) -> str:
+    """簽發 JWT：payload 為登入者身分加上 iss（簽發者）、iat（簽發時間）、exp（到期時間）"""
     settings = get_settings()
     now = datetime.now(UTC)
     payload = {
@@ -52,6 +55,7 @@ def create_token(user: CurrentUser) -> str:
 
 
 def decode_token(token: str) -> CurrentUser:
+    """驗證簽章、簽發者與到期時間後還原登入者；任何一項不符都視為未登入"""
     settings = get_settings()
     try:
         payload = jwt.decode(
@@ -75,6 +79,7 @@ def decode_token(token: str) -> CurrentUser:
 
 
 def set_session_cookie(response: Response, user: CurrentUser) -> None:
+    """登入成功時寫入 JWT cookie；cookie 效期與 JWT 效期一致"""
     settings = get_settings()
     response.set_cookie(
         settings.auth_cookie,
@@ -88,4 +93,5 @@ def set_session_cookie(response: Response, user: CurrentUser) -> None:
 
 
 def clear_session_cookie(response: Response) -> None:
+    """登出：刪除 cookie（path 必須與寫入時相同，瀏覽器才會刪到同一個 cookie）"""
     response.delete_cookie(get_settings().auth_cookie, path="/")

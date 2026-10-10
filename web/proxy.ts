@@ -17,10 +17,12 @@ export async function proxy(request: NextRequest) {
 
   if (!user) {
     const url = new URL("/login", request.url);
+    // 記下原本要去的頁面，登入後可導回
     if (pathname !== "/") url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
 
+  // 角色首頁即該角色所有頁面的路徑前綴（/admin、/teacher、/student）
   const home = ROLE_HOME[user.role];
   if (pathname === "/" || !pathname.startsWith(home)) {
     return NextResponse.redirect(new URL(home, request.url));

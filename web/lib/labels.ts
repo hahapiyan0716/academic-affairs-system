@@ -1,5 +1,6 @@
-// 列舉值 → 中文顯示文字
+// 列舉值 → 中文顯示文字（鍵值需與後端 api/app/models.py 的列舉一致）
 
+// 索引 0 = 星期一；後端的 weekday 從 1 開始，取用時要減 1
 export const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"] as const;
 
 export const SEMESTER_STATUS: Record<string, string> = {
@@ -42,9 +43,11 @@ export function semesterLabel(id: string): string {
 /** '一5@O313,一6@O313' → '一5,6 (O313)' 的精簡顯示 */
 export function compactSchedule(text: string | null): string {
   if (!text) return "—";
+  // 以「星期 + 教室」分組，把同組的節次收集在一起；Map 保留插入順序，輸出順序與原字串一致
   const groups = new Map<string, number[]>();
   for (const part of text.split(",")) {
     const [slot, room] = part.split("@");
+    // slot 第一個字是星期（一～日），其後是節次數字
     const key = `${slot[0]}|${room}`;
     groups.set(key, [...(groups.get(key) ?? []), Number(slot.slice(1))]);
   }

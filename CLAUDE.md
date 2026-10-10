@@ -68,7 +68,8 @@ npx next build
 - `POST /api/auth/login` 簽發 JWT（HS256），存在 httpOnly cookie `access_token`。以下兩處的 `JWT_SECRET`、issuer `academic-affairs-system`、cookie 名稱必須一致：
   - `api/app/config.py` 與 `api/app/session.py`（`api/.env`）
   - `web/lib/session.ts`（`web/.env.local`）
-- JWT payload：`sub`（user_id）、`username`、`role`、`name`、`teacher_id`、`student_id`。**刻意不放 `can_open_section` 與學籍狀態**：權限可能隨時被收回，必須每次查資料庫。
+- JWT payload：`sub`（user_id）、`username`、`role`、`name`、`teacher_id`、`student_id`。**刻意不放 `can_open_section` 與學籍狀態**：權限可能隨時被收回，必須每次查資料庫。帳號是否停用（`is_active`）同理，由 `require_auth.get_current_user` 在每個需登入的請求查詢，停用後舊 JWT 立即回 401。
+- 前端 `lib/api.ts` 收到 401 時先呼叫 `/api/auth/logout` 清除 cookie 再導向 `/login`：被停用帳號的 JWT 仍通過 `proxy.ts` 驗證，若不清 cookie 會在登入頁與角色首頁之間無限導向。
 - `web/proxy.ts` 只負責頁面導向，不是安全邊界；權限一律由後端檢查。
 - 密碼以 `bcrypt` 雜湊。bcrypt 5.x 對超過 72 bytes 的輸入會拋出例外，因此密碼上限以 bytes 驗證（`schemas/auth_schema.py` 的 `Password`）。
 - 登入限流存在單一 process 的記憶體中；只信任來自 loopback（Next.js rewrites）的 `X-Forwarded-For`。
@@ -105,7 +106,7 @@ npx next build
 ### 種子資料與測試
 
 - `python -m seed`（`api/seed/__main__.py`）會逐句執行 `seed/seed.sql`，再以 bcrypt 建立帳號：帳號為 `admin`／教師代碼／學號，密碼為 `.env` 的 `SEED_PASSWORD`。seed.sql 以「行尾分號」切分敘述，字串內不可出現分號或 `--`。
-- 種子學期：`1132`、`1141` 為已結束的歷史學期，`1151` 為目前學期（選課中）。section 16（演算法，上限 3、已選 2）用來展示額滿；section 12 與 14 在「五 4」衝堂。測試與展示都依賴這些資料。
+- 種子學期：`1131`、`1132`、`1141`、`1142` 為已結束的歷史學期，`1151` 為目前學期（選課中），`1152` 為下學期（規劃中，無選課資料；section 33 為停開班級）。section 16（演算法，上限 3、已選 2）用來展示額滿；section 12 與 14 在「五 4」衝堂。測試與展示都依賴這些資料。
 - 測試直接連 `.env` 設定的開發資料庫，新增測試時要維持隔離原則，不可留下資料：
   - 選課與開課測試只在測試學期 `9991` 中建立與刪除資料（`tests/conftest.py`）。
   - 管理員測試在 `finally` 中還原它改動的資料。

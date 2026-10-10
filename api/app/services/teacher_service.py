@@ -9,6 +9,7 @@ from app.schemas.teacher_schema import AdminTeacherOut, PermissionLogOut, Teache
 
 
 def get_teacher(db: Session, teacher_id: str) -> Teacher:
+    """取得教師資料（含目前的開課權限），不存在時 404"""
     teacher = teacher_repository.get(db, teacher_id)
     if teacher is None:
         raise NotFoundError("找不到教師資料")
@@ -16,6 +17,7 @@ def get_teacher(db: Session, teacher_id: str) -> Teacher:
 
 
 def list_brief(db: Session) -> list[Teacher]:
+    """全部教師的代碼與姓名"""
     return teacher_repository.list_brief(db)
 
 
@@ -28,6 +30,7 @@ def list_for_admin(db: Session) -> list[AdminTeacherOut]:
             dept_id=t.dept_id,
             can_open_section=t.can_open_section,
             user=TeacherUserOut.model_validate(t.user) if t.user else None,
+            # permission_logs 依時間由新到舊排序（見 models.Teacher），第一筆即最近一次
             latest_log=PermissionLogOut.model_validate(t.permission_logs[0]) if t.permission_logs else None,
         )
         for t in teacher_repository.list_with_permission_logs(db)
@@ -36,6 +39,7 @@ def list_for_admin(db: Session) -> list[AdminTeacherOut]:
 
 def update_permission(db: Session, admin_id: int, teacher_id: str, granted: bool) -> Teacher:
     """授予或收回開課權限；權限變更與稽核紀錄在同一個交易內寫入，確保兩者一致"""
+    # 鎖定教師列：兩位管理員同時切換時依序執行，稽核紀錄的先後與最終狀態一致
     teacher = teacher_repository.get(db, teacher_id, lock=True)
     if teacher is None:
         raise NotFoundError("找不到教師")
@@ -48,4 +52,5 @@ def update_permission(db: Session, admin_id: int, teacher_id: str, granted: bool
 
 
 def list_permission_logs(db: Session, teacher_id: str) -> list[TeacherPermissionLog]:
+    """某教師的完整權限異動紀錄，新的在前"""
     return teacher_repository.list_permission_logs(db, teacher_id)

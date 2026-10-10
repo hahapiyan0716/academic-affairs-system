@@ -8,15 +8,24 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useApi } from "@/lib/api";
 import { COURSE_TYPE, compactSchedule, semesterLabel } from "@/lib/labels";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import type { HistorySection } from "@/types";
 
+/** 歷年開課紀錄：依課名／課號與教師姓名搜尋跨學期的開課資料 */
 export default function HistoryPage() {
   const [q, setQ] = useState("");
   const [teacher, setTeacher] = useState("");
+  // 領域為下拉選單，選定即查詢，不需延遲
   const [field, setField] = useState("");
+  // 兩個搜尋框合併成一個字串再延遲，連續在兩個欄位間輸入時也只發一次請求。
+  // 用字串而非物件：物件每次渲染都是新的參考，會讓 useDebouncedValue 的 effect 不斷重跑。
+  // 單行輸入框無法輸入換行，因此以 \n 分隔不會與內容衝突。
+  const filters = useDebouncedValue(`${q.trim()}\n${teacher.trim()}`);
+  const [keyword, teacherName] = filters.split("\n");
+  // 搜尋條件改變 → path 改變 → useApi 自動重新請求
   const params = new URLSearchParams();
-  if (q.trim()) params.set("q", q.trim());
-  if (teacher.trim()) params.set("teacher", teacher.trim());
+  if (keyword) params.set("q", keyword);
+  if (teacherName) params.set("teacher", teacherName);
   if (field) params.set("field", field);
   const { data, error, loading } = useApi<HistorySection[]>(`/api/history/sections?${params}`);
 
@@ -64,6 +73,7 @@ export default function HistoryPage() {
                     <TableCell>{COURSE_TYPE[s.course_type]}</TableCell>
                     <TableCell className="text-sm">{s.field_names ?? "—"}</TableCell>
                     <TableCell>{s.teacher_names}</TableCell>
+                    {/* 停開的班級時段已被刪除（釋放教室），改顯示「已停開」 */}
                     <TableCell className="text-sm">
                       {s.status === "Cancelled" ? <Badge variant="outline">已停開</Badge> : compactSchedule(s.schedule_text)}
                     </TableCell>

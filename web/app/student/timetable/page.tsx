@@ -9,7 +9,9 @@ import { COURSE_TYPE, compactSchedule } from "@/lib/labels";
 import type { Timetable } from "@/types";
 import TimetableGrid from "./timetable-grid";
 
+/** 我的課表：週課表格狀圖 + 選課清單 */
 export default function TimetablePage() {
+  // 空字串 = 未選擇，後端預設回傳目前學期的課表
   const [semester, setSemester] = useState("");
   const { data, error, loading } = useApi<Timetable>(
     `/api/me/timetable${semester ? `?semester_id=${semester}` : ""}`,

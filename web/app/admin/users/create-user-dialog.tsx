@@ -18,9 +18,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { api, useApi } from "@/lib/api";
 import type { Department, Role } from "@/types";
 
+/** 「新增帳號」按鈕與對話框；依身分顯示不同的個人資料欄位 */
 export default function CreateUserDialog({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false);
   const [role, setRole] = useState<Role>("Student");
+  // 教師與學生共用 id、name 欄位，送出時再依身分對應成 teacher_id／student_id 等
   const [form, setForm] = useState({
     username: "",
     password: "",
@@ -31,13 +33,16 @@ export default function CreateUserDialog({ onCreated }: { onCreated: () => void 
     class_code: "A",
     degree: "0",
   });
+  // 對話框開啟時才讀取系所清單
   const { data: depts } = useApi<Department[]>(open ? "/api/admin/departments" : null);
+  // 產生 <Input> 的 onChange：set("username") 會更新 form.username
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const base = { role, username: form.username, password: form.password };
+    // 請求格式依 role 而不同（對應後端 UserCreateIn 的 discriminated union）；教師的系所為選填
     const body =
       role === "Teacher"
         ? { ...base, profile: { teacher_id: form.id, teacher_name: form.name, dept_id: form.dept_id || null } }
@@ -57,6 +62,7 @@ export default function CreateUserDialog({ onCreated }: { onCreated: () => void 
     try {
       await api("/api/admin/users", { method: "POST", json: body });
       toast.success(`已建立帳號 ${form.username}`);
+      // 本對話框不會卸載，表單內容會保留到下次開啟
       setOpen(false);
       onCreated();
     } catch (err) {

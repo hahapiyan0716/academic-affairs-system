@@ -22,7 +22,9 @@ import { compactSchedule, semesterLabel } from "@/lib/labels";
 import type { Roster } from "@/types";
 import SectionSettings from "./section-settings";
 
+/** 班級頁：班級設定、修課名單與登錄成績 */
 export default function SectionRosterPage() {
+  // 動態路由 [id]：網址中的班級 ID
   const { id } = useParams<{ id: string }>();
   const { data, error, loading, reload } = useApi<Roster>(`/api/teacher/sections/${id}/roster`);
   // 只記錄使用者修改過的欄位；未修改者顯示伺服器上的值
@@ -33,11 +35,15 @@ export default function SectionRosterPage() {
   if (error || !data) return <ErrorState message={error ?? "無法載入資料"} />;
 
   const { section, students, gradable } = data;
+  // 班級設定只在開課期間（與後端 section_service 的 OPENABLE 一致）且班級未停開時顯示
   const editable = section.status === "Open" && ["Planning", "Enrolling"].includes(data.semester_status);
+  // 畫面上每位學生的成績 = 修改中的值，否則為伺服器上的值
   const scoreOf = (sid: string, original: string | null) => edits[sid] ?? original ?? "";
   const scores = Object.fromEntries(students.map((s) => [s.student_id, scoreOf(s.student_id, s.score)]));
+  // 與伺服器值不同的才送出；改了又改回原值的不算
   const dirty = students.filter((s) => (s.score ?? "") !== scores[s.student_id]);
 
+  /** 送出有變動的成績；先在前端擋掉明顯錯誤的輸入，後端仍會再驗證一次 */
   async function saveGrades() {
     const invalid = dirty.find((s) => {
       const v = scores[s.student_id];
@@ -51,11 +57,13 @@ export default function SectionRosterPage() {
         json: {
           grades: dirty.map((s) => ({
             student_id: s.student_id,
+            // 清空欄位 = 清除成績（送出 null）；數值以字串送出，由後端轉成 Decimal
             score: scores[s.student_id] === "" ? null : scores[s.student_id],
           })),
         },
       });
       toast.success(`已更新 ${res.updated} 筆成績`);
+      // 清空修改紀錄，改顯示重新讀取後的伺服器值
       setEdits({});
       reload();
     } catch (e) {

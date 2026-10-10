@@ -38,7 +38,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
-    pass
+    """所有 ORM 模型的基底；Base.metadata 收集全部資料表，供 Alembic 比對"""
 
 
 # 所有資料表統一使用 utf8mb4_unicode_ci（MySQL 8 的預設 collation 是 utf8mb4_0900_ai_ci）
@@ -46,6 +46,7 @@ TABLE_OPTIONS: dict[str, Any] = {"mysql_charset": "utf8mb4", "mysql_collate": "u
 
 
 def table_args(*items: Any) -> tuple[Any, ...]:
+    """組出 __table_args__：約束與索引在前，最後附上共用的資料表選項（SQLAlchemy 規定 dict 必須放最後）"""
     return (*items, TABLE_OPTIONS)
 
 
@@ -54,6 +55,7 @@ def fk(target: str, name: str, *, ondelete: str = "RESTRICT") -> ForeignKey:
     return ForeignKey(target, name=name, ondelete=ondelete, onupdate="CASCADE")
 
 
+# server_default 用的 SQL 片段：預設值寫進 DDL，由資料庫產生，而不是由 Python 在 INSERT 時帶入
 TRUE = text("1")
 FALSE = text("0")
 NOW = func.current_timestamp()
@@ -65,6 +67,8 @@ NOW = func.current_timestamp()
 
 
 class Role(StrEnum):
+    """帳號角色：管理員、教師、學生"""
+
     Admin = "Admin"
     Teacher = "Teacher"
     Student = "Student"
@@ -79,6 +83,8 @@ class StudentStatus(StrEnum):
 
 
 class CourseType(StrEnum):
+    """課程類別：必修、選修"""
+
     Required = "Required"
     Elective = "Elective"
 
@@ -93,6 +99,8 @@ class SemesterStatus(StrEnum):
 
 
 class SectionStatus(StrEnum):
+    """班級狀態：開課中、已停開"""
+
     Open = "Open"
     Cancelled = "Cancelled"
 
@@ -118,6 +126,7 @@ ACTIVE_ENROLLMENT = (EnrollmentStatus.Selected, EnrollmentStatus.Manual)
 
 
 def _enum(cls: type[StrEnum]) -> Enum:
+    """把 Python 列舉對應成資料庫欄位型別；資料庫中存的是列舉的值（value）而非名稱"""
     # native_enum=True 對應 MySQL 的 ENUM 型別；validate_strings 讓錯誤值在 Python 端就被擋下
     return Enum(cls, native_enum=True, validate_strings=True, values_callable=lambda e: [m.value for m in e])
 
@@ -135,9 +144,9 @@ class UserAccount(Base):
 
     user_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(VARCHAR(30))
-    password_hash: Mapped[str] = mapped_column(VARCHAR(100))
+    password_hash: Mapped[str] = mapped_column(VARCHAR(100))  # bcrypt 雜湊，不存明碼
     role: Mapped[Role] = mapped_column(_enum(Role))
-    is_active: Mapped[bool] = mapped_column(Boolean, server_default=TRUE)
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default=TRUE)  # 停用的帳號無法登入
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=NOW)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
 
@@ -146,6 +155,8 @@ class UserAccount(Base):
 
 
 class Department(Base):
+    """系所"""
+
     __tablename__ = "Department"
     __table_args__ = table_args(UniqueConstraint("dept_name", name="Department_dept_name_key"))
 
@@ -154,6 +165,8 @@ class Department(Base):
 
 
 class Teacher(Base):
+    """教師個人資料；user_id 連結登入帳號（一對一）"""
+
     __tablename__ = "Teacher"
     __table_args__ = table_args(UniqueConstraint("user_id", name="Teacher_user_id_key"))
 
@@ -198,15 +211,17 @@ class TeacherPermissionLog(Base):
 
 
 class Student(Base):
+    """學生學籍資料；user_id 連結登入帳號（一對一）"""
+
     __tablename__ = "Student"
     __table_args__ = table_args(UniqueConstraint("user_id", name="Student_user_id_key"))
 
     student_id: Mapped[str] = mapped_column(CHAR(10), primary_key=True)
     student_name: Mapped[str] = mapped_column(VARCHAR(30))
     dept_id: Mapped[str] = mapped_column(CHAR(4), fk("Department.dept_id", "Student_dept_id_fkey"))
-    grade: Mapped[int] = mapped_column(TINYINT)
+    grade: Mapped[int] = mapped_column(TINYINT)  # 年級
     status: Mapped[StudentStatus] = mapped_column(_enum(StudentStatus))
-    class_code: Mapped[str] = mapped_column(CHAR(2))
+    class_code: Mapped[str] = mapped_column(CHAR(2))  # 班別
     # 0 = 大學部、1 = 碩博班（影響及格標準：60 / 70）
     degree: Mapped[int] = mapped_column(TINYINT, server_default=text("0"))
     user_id: Mapped[int | None] = mapped_column(
@@ -222,6 +237,8 @@ class Student(Base):
 
 
 class Building(Base):
+    """建築物"""
+
     __tablename__ = "Building"
     __table_args__ = table_args(UniqueConstraint("building_name", name="Building_building_name_key"))
 
@@ -230,6 +247,8 @@ class Building(Base):
 
 
 class Room(Base):
+    """教室；seat_capacity 為座位數（未知時為 NULL）"""
+
     __tablename__ = "Room"
     __table_args__ = table_args()
 
@@ -246,6 +265,8 @@ class Room(Base):
 
 
 class Course(Base):
+    """課程（課號、名稱、學分）；每學期實際開設的班級見 Section"""
+
     __tablename__ = "Course"
     __table_args__ = table_args(CheckConstraint("credit BETWEEN 0 AND 10", name="chk_course_credit"))
 
@@ -260,12 +281,15 @@ class Course(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=TRUE)
 
     department: Mapped[Department | None] = relationship()
+    # delete-orphan：從 fields 清單移除的項目，flush 時會從資料庫刪除
     fields: Mapped[list["CurriculumField"]] = relationship(
         cascade="all, delete-orphan", order_by="CurriculumField.field_name"
     )
 
 
 class CurriculumField(Base):
+    """課程所屬的領域（一門課可屬於多個領域）；以 (course_no, field_name) 為複合主鍵"""
+
     __tablename__ = "CurriculumField"
     __table_args__ = table_args()
 
@@ -281,6 +305,8 @@ class CurriculumField(Base):
 
 
 class Semester(Base):
+    """學期；status 決定此學期目前可進行的操作（見 SemesterStatus）"""
+
     __tablename__ = "Semester"
     __table_args__ = table_args(
         UniqueConstraint("acad_year", "term", name="Semester_acad_year_term_key"),
@@ -313,8 +339,8 @@ class Section(Base):
     section_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     course_no: Mapped[str] = mapped_column(CHAR(5), fk("Course.course_no", "Section_course_no_fkey"))
     semester_id: Mapped[str] = mapped_column(CHAR(4), fk("Semester.semester_id", "Section_semester_id_fkey"))
-    section_code: Mapped[str] = mapped_column(CHAR(2), server_default="01")
-    capacity: Mapped[int] = mapped_column(SmallInteger)
+    section_code: Mapped[str] = mapped_column(CHAR(2), server_default="01")  # 班別：同課同學期的第幾班
+    capacity: Mapped[int] = mapped_column(SmallInteger)  # 修課人數上限
     status: Mapped[SectionStatus] = mapped_column(_enum(SectionStatus), server_default="Open")
     # 由哪位教師建立（系統匯入的歷史資料可為 NULL）
     created_by: Mapped[str | None] = mapped_column(
@@ -348,7 +374,7 @@ class SectionTeacher(Base):
     teacher_id: Mapped[str] = mapped_column(
         CHAR(6), fk("Teacher.teacher_id", "SectionTeacher_teacher_id_fkey"), primary_key=True
     )
-    is_primary: Mapped[bool] = mapped_column(Boolean, server_default=TRUE)
+    is_primary: Mapped[bool] = mapped_column(Boolean, server_default=TRUE)  # 主授教師（列表中排在前面）
 
     section: Mapped[Section] = relationship(back_populates="teachers")
     teacher: Mapped[Teacher] = relationship()
@@ -407,9 +433,10 @@ class Enrollment(Base):
         Integer, fk("Section.section_id", "Enrollment_section_id_fkey"), primary_key=True
     )
     status: Mapped[EnrollmentStatus] = mapped_column(_enum(EnrollmentStatus))
-    score: Mapped[Decimal | None] = mapped_column(DECIMAL(4, 1))
+    score: Mapped[Decimal | None] = mapped_column(DECIMAL(4, 1))  # 學期成績（0–100，一位小數）；NULL 表示尚未登分
     feedback_rank: Mapped[int | None] = mapped_column(TINYINT)  # 教學評量（1–10）
     enrolled_at: Mapped[datetime] = mapped_column(DateTime, server_default=NOW)
+    # onupdate：透過 ORM 更新這一列時，SQLAlchemy 自動把此欄設為目前時間
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=NOW, onupdate=func.now())
 
     student: Mapped[Student] = relationship()
@@ -447,6 +474,13 @@ class ScoreChangeLog(Base):
 
 
 class SectionDetailView(Base):
+    """
+    班級明細：班級 + 課程資訊，並把多筆子資料彙整成單一欄位
+    - teacher_names：授課教師（主授在前，以「、」分隔）
+    - schedule_text：上課時段，例如 "一5@A101,三3@B203"
+    - enrolled_count：有效選課（Selected／Manual）人數
+    """
+
     __tablename__ = "v_section_detail"
     __table_args__ = {"info": {"is_view": True}}
 
@@ -467,6 +501,11 @@ class SectionDetailView(Base):
 
 
 class TranscriptView(Base):
+    """
+    學生歷年成績單：只含有效選課（Selected／Manual）的紀錄
+    passed：1 = 及格、0 = 不及格、NULL = 尚未登分；大學部 60 分及格、碩博班 70 分及格
+    """
+
     __tablename__ = "v_student_transcript"
     __table_args__ = {"info": {"is_view": True}}
 

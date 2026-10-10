@@ -62,7 +62,7 @@ app\
 migrations\           Alembic：env.py 與 versions\（0001_init：15 張表、CHECK 約束、2 個 View；
                       0002_field_names：View 加入課程領域欄位）
 seed\                 seed.sql（種子資料）與 python -m seed
-tests\                pytest（38 項）
+tests\                pytest（39 項）
 database\             schema.generated.sql（完整建表 SQL，閱讀用）、sql-examples.sql（SQL 操作範例）、
                       Relational Database Schema.png（現行結構的關聯綱要圖）
 database\original-design\  專案一開始的 3NF 設計（ER 圖、關聯綱要、原始資料 xlsx），非現行結構
@@ -81,7 +81,7 @@ database\original-design\  專案一開始的 3NF 設計（ER 圖、關聯綱要
 ## 測試
 
 ```powershell
-pytest                                                    # 全部 38 項
+pytest                                                    # 全部 39 項
 pytest tests/test_enrollment.py::test_full_section_rejected   # 單一測試
 ```
 

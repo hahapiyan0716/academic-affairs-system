@@ -11,17 +11,23 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, useApi } from "@/lib/api";
 import { ROLE_LABEL, STUDENT_STATUS } from "@/lib/labels";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import type { AdminUser, Role } from "@/types";
 import CreateUserDialog from "./create-user-dialog";
 
+/** 帳號管理：依身分與關鍵字篩選帳號、建立帳號、啟用／停用、調整學籍 */
 export default function UsersPage() {
-  const [role, setRole] = useState<"" | Role>("");
+  const [role, setRole] = useState<"" | Role>(""); // 空字串 = 全部身分
   const [q, setQ] = useState("");
+  // 關鍵字停止輸入後才套用；身分是下拉選單，切換時立即生效
+  const keyword = useDebouncedValue(q.trim());
+  // 篩選條件直接組成查詢字串；條件改變 → path 改變 → useApi 自動重新請求
   const params = new URLSearchParams();
   if (role) params.set("role", role);
-  if (q.trim()) params.set("q", q.trim());
+  if (keyword) params.set("q", keyword);
   const { data, error, loading, reload } = useApi<AdminUser[]>(`/api/admin/users?${params}`);
 
+  /** 啟用／停用登入（後端禁止停用自己） */
   async function toggleActive(u: AdminUser) {
     try {
       await api(`/api/admin/users/${u.user_id}`, { method: "PATCH", json: { is_active: !u.is_active } });
@@ -32,6 +38,7 @@ export default function UsersPage() {
     }
   }
 
+  /** 變更學籍（休學、退學的學生不可選課） */
   async function changeStudentStatus(studentId: string, status: string) {
     try {
       await api(`/api/admin/users/students/${studentId}/status`, { method: "PATCH", json: { status } });
@@ -46,6 +53,7 @@ export default function UsersPage() {
     <>
       <PageHeader title="帳號管理" description="建立帳號、停用登入、調整學生學籍狀態">
         <Input placeholder="搜尋帳號或姓名" value={q} onChange={(e) => setQ(e.target.value)} className="w-48" />
+        {/* Select 的選項值不可為空字串，「全部」以 "all" 代表 */}
         <Select value={role || "all"} onValueChange={(v) => setRole(v === "all" ? "" : (v as Role))}>
           <SelectTrigger className="w-32">
             <SelectValue />

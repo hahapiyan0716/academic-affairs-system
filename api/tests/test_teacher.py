@@ -7,6 +7,7 @@ from app.models import ScoreChangeLog, SemesterStatus
 
 
 def _payload(**overrides):
+    """開課請求的預設內容（測試學期 9991、星期一第 2 節、教室 I1-018），可用關鍵字參數覆寫個別欄位"""
     body = {
         "course_no": "A0004",
         "semester_id": "9991",
@@ -18,6 +19,7 @@ def _payload(**overrides):
 
 
 def test_teacher_without_permission_cannot_open(semester, client_as, grant_permission):
+    """沒有開課權限的教師開課 → 403"""
     grant_permission("T002", False)
     res = client_as("T002", role="Teacher").post("/api/teacher/sections", json=_payload())
     assert res.status_code == 403
@@ -36,6 +38,7 @@ def test_permission_revoked_takes_effect_immediately(semester, client_as, grant_
 
 
 def test_room_conflict_rejected(semester, client_as, grant_permission):
+    """不同教師在同學期、同時段借用同一間教室 → 409"""
     grant_permission("T001", True)
     grant_permission("T003", True)
     assert client_as("T001", role="Teacher").post("/api/teacher/sections", json=_payload()).status_code == 201
@@ -48,6 +51,7 @@ def test_room_conflict_rejected(semester, client_as, grant_permission):
 
 
 def test_teacher_time_conflict_rejected(semester, client_as, grant_permission):
+    """同一位教師在同時段開兩個班 → 409"""
     grant_permission("T001", True)
     t001 = client_as("T001", role="Teacher")
     assert t001.post("/api/teacher/sections", json=_payload()).status_code == 201
@@ -62,6 +66,7 @@ def test_teacher_time_conflict_rejected(semester, client_as, grant_permission):
 
 
 def test_closed_semester_cannot_open(semester, client_as, grant_permission):
+    """已結束的學期不可開課"""
     grant_permission("T001", True)
     semester(SemesterStatus.Finished)
     res = client_as("T001", role="Teacher").post("/api/teacher/sections", json=_payload())
@@ -69,6 +74,7 @@ def test_closed_semester_cannot_open(semester, client_as, grant_permission):
 
 
 def test_grades_and_audit_log(semester, make_section, client_as):
+    """登分的學期狀態限制、成績稽核紀錄、輸入驗證與授課教師檢查"""
     sid = make_section(teacher_id="T001")
     assert client_as("S001").post("/api/enrollments", json={"section_id": sid}).status_code == 201
     t001 = client_as("T001", role="Teacher")

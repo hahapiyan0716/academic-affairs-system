@@ -7,6 +7,7 @@ import { useApi } from "@/lib/api";
 import { semesterLabel } from "@/lib/labels";
 import type { Semester } from "@/types";
 
+// 對應後端 StatsOut；只有本頁使用，因此不放在 types.ts
 interface Stats {
   users: number;
   teachers_with_permission: number;
@@ -15,12 +16,14 @@ interface Stats {
   current_semester: Semester | null;
 }
 
+/** 管理員首頁：統計數字與目前學期 */
 export default function AdminDashboard() {
   const { data, error, loading } = useApi<Stats>("/api/admin/stats");
 
   if (loading) return <LoadingState />;
   if (error || !data) return <ErrorState message={error ?? "無法載入資料"} />;
 
+  // 上方四格統計卡片
   const tiles = [
     { label: "系統帳號", value: data.users, icon: Users },
     { label: "在學學生", value: data.enrolled_students, icon: Users },

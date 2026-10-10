@@ -9,6 +9,7 @@ from app.schemas.course_schema import AdminCourseOut, CourseCreateIn, CourseUpda
 
 
 def _to_admin_out(course: Course, section_count: int) -> AdminCourseOut:
+    """ORM 物件 + 開班次數 → 管理員用的回應格式（領域與系所需已預先載入）"""
     return AdminCourseOut(
         course_no=course.course_no,
         course_name=course.course_name,
@@ -23,6 +24,7 @@ def _to_admin_out(course: Course, section_count: int) -> AdminCourseOut:
 
 
 def _get_with_details(db: Session, course_no: str) -> Course:
+    """取得課程（含領域與系所），不存在時 404"""
     course = course_repository.get_with_details(db, course_no)
     if course is None:
         raise NotFoundError("找不到課程")
@@ -30,6 +32,7 @@ def _get_with_details(db: Session, course_no: str) -> Course:
 
 
 def list_active(db: Session) -> list[Course]:
+    """啟用中的課程（教師開課時可選的課程）"""
     return course_repository.list_active(db)
 
 
@@ -48,6 +51,7 @@ def create_course(db: Session, data: CourseCreateIn) -> AdminCourseOut:
     """新增課程；課程代碼重複時由資料庫回報 409"""
     course = Course(
         **data.model_dump(exclude={"fields"}),
+        # dict.fromkeys 去除重複的領域名稱（保留順序），否則會違反 CurriculumField 的複合主鍵
         fields=[CurriculumField(field_name=f) for f in dict.fromkeys(data.fields)],
     )
     course_repository.add(db, course)
@@ -58,6 +62,7 @@ def create_course(db: Session, data: CourseCreateIn) -> AdminCourseOut:
 def update_course(db: Session, course_no: str, data: CourseUpdateIn) -> AdminCourseOut:
     """修改課程資訊；課程不提供刪除，改用 is_active 停用，以保留歷年開課紀錄的參照完整性"""
     course = _get_with_details(db, course_no)
+    # exclude_unset：只取前端有傳入的欄位，未傳入的維持原值
     for key, value in data.model_dump(exclude_unset=True, exclude={"fields"}).items():
         setattr(course, key, value)
 

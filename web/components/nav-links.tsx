@@ -9,6 +9,7 @@ export interface NavItem {
   label: string;
 }
 
+/** 頂部導覽列（Client Component：需要 usePathname 判斷目前所在頁面） */
 export function NavLinks({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
   // 最長前綴者為目前所在頁（避免 /admin 與 /admin/users 同時被標示）

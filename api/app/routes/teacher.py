@@ -15,9 +15,12 @@ router = APIRouter(prefix="/api/teacher", tags=["teacher"])
 
 DB = Annotated[Session, Depends(get_db)]
 
+# 教師代碼一律取自登入身分（teacher_id_of）；service 再檢查班級是否屬於該教師
+
 
 @router.get("/me", response_model=TeacherMeOut)
 def me(user: TeacherUser, db: DB):
+    """教師本人資料；開課權限即時查資料庫"""
     return teacher_service.get_teacher(db, teacher_id_of(user))
 
 
@@ -29,21 +32,26 @@ def my_sections(user: TeacherUser, db: DB, semester_id: str | None = None):
 
 @router.post("/sections", response_model=SectionOut, status_code=status.HTTP_201_CREATED)
 def create_section(user: TeacherUser, db: DB, body: SectionCreate):
+    """開課；需具備開課權限，且學期須為規劃中或選課中"""
     section = section_service.create_section(db, teacher_id_of(user), body)
+    # 回傳 View 的明細（含教師姓名、時段文字、人數），與列表格式一致
     return section_service.get_detail(db, section.section_id)
 
 
 @router.patch("/sections/{section_id}", response_model=SectionOut)
 def update_section(user: TeacherUser, db: DB, section_id: int, body: SectionUpdate):
+    """修改人數上限，或停開班級"""
     section_service.update_section(db, teacher_id_of(user), section_id, body)
     return section_service.get_detail(db, section_id)
 
 
 @router.get("/sections/{section_id}/roster", response_model=RosterOut)
 def roster(user: TeacherUser, db: DB, section_id: int):
+    """修課名單與目前成績"""
     return section_service.get_roster(db, teacher_id_of(user), section_id)
 
 
 @router.put("/sections/{section_id}/grades", response_model=GradesResult)
 def update_grades(user: TeacherUser, db: DB, section_id: int, body: GradesUpdate):
+    """批次登錄成績；user_id 寫入稽核紀錄的操作者欄位"""
     return section_service.update_grades(db, teacher_id_of(user), user.user_id, section_id, body)

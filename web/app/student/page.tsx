@@ -18,22 +18,32 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, useApi } from "@/lib/api";
 import { COURSE_TYPE, compactSchedule, semesterLabel } from "@/lib/labels";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import type { BrowseSection, Semester } from "@/types";
 
+// 有效選課狀態，與後端 models.ACTIVE_ENROLLMENT 一致
 const ACTIVE = ["Selected", "Manual"];
 
+/** 學生加退選：瀏覽目前學期的開放班級，即時加選或退選 */
 export default function EnrollPage() {
   const [q, setQ] = useState("");
+  // 停止輸入後才送出搜尋，避免每打一個字就查一次
+  const keyword = useDebouncedValue(q.trim());
+  // 領域為下拉選單，選定即查詢，不需延遲
   const [field, setField] = useState("");
+  // 正在送出加退選請求的班級，用來停用該列按鈕、防止重複點擊
   const [busy, setBusy] = useState<number | null>(null);
   const { data: semesters } = useApi<Semester[]>("/api/semesters");
   const current = semesters?.find((s) => s.is_current);
+  // 不帶 semester_id 時，後端預設查詢目前學期
   const params = new URLSearchParams();
-  if (q.trim()) params.set("q", q.trim());
+  if (keyword) params.set("q", keyword);
   if (field) params.set("field", field);
   const { data, error, loading, reload } = useApi<BrowseSection[]>(`/api/sections?${params}`);
+  // 只用來決定按鈕是否可按；真正的限制由後端檢查
   const enrolling = current?.status === "Enrolling";
 
+  /** 加選（withdraw = false）或退選（withdraw = true），完成後不論成敗都重新讀取列表 */
   async function act(s: BrowseSection, withdraw: boolean) {
     setBusy(s.section_id);
     try {
@@ -49,6 +59,7 @@ export default function EnrollPage() {
       toast.error((e as Error).message);
     } finally {
       setBusy(null);
+      // 失敗時也重新讀取：例如額滿是因為別人剛搶走名額，需要更新畫面上的人數
       reload();
     }
   }
@@ -101,6 +112,7 @@ export default function EnrollPage() {
               </TableHeader>
               <TableBody>
                 {data.map((s) => {
+                  // mine：目前已選上此班（顯示退選按鈕）；full：已額滿（僅作提示，仍可嘗試加選）
                   const mine = s.my_status !== null && ACTIVE.includes(s.my_status);
                   const full = s.enrolled_count >= s.capacity;
                   return (

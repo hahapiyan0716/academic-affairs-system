@@ -12,8 +12,11 @@ import { useApi } from "@/lib/api";
 import { COURSE_TYPE, compactSchedule, semesterLabel } from "@/lib/labels";
 import type { Section } from "@/types";
 
+/** 教師首頁：自己授課的班級列表 */
 export default function TeacherHome() {
+  // 空字串 = 全部學期
   const [semester, setSemester] = useState("");
+  // 開課權限即時查資料庫（不在 JWT 中），決定是否顯示「新增開課」按鈕
   const { data: me } = useApi<{ teacher_name: string; can_open_section: boolean }>("/api/teacher/me");
   const { data, error, loading } = useApi<Section[]>(
     `/api/teacher/sections${semester ? `?semester_id=${semester}` : ""}`,

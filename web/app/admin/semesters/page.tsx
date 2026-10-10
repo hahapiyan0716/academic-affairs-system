@@ -14,11 +14,14 @@ import { api, useApi } from "@/lib/api";
 import { SEMESTER_STATUS, semesterLabel } from "@/lib/labels";
 import type { Semester } from "@/types";
 
+/** 學期管理：新增學期、切換學期狀態、設定目前學期 */
 export default function SemestersPage() {
   const { data, error, loading, reload } = useApi<Semester[]>("/api/admin/semesters");
+  // 新增學期表單的學年與學期
   const [year, setYear] = useState("115");
   const [term, setTerm] = useState("2");
 
+  /** 修改學期（狀態或目前學期），成功後顯示 msg 並重新讀取 */
   async function patch(id: string, body: object, msg: string) {
     try {
       await api(`/api/admin/semesters/${id}`, { method: "PATCH", json: body });
@@ -29,6 +32,7 @@ export default function SemestersPage() {
     }
   }
 
+  /** 新增學期；學期代碼由後端組成，重複時後端回 409 */
   async function create() {
     try {
       await api("/api/admin/semesters", {

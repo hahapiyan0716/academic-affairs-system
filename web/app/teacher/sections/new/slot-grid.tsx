@@ -3,6 +3,7 @@
 import { WEEKDAYS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
+// 畫面提供第 1–10 節、星期一到六；後端允許的範圍較大（1–14 節、星期一到日）
 const PERIODS = Array.from({ length: 10 }, (_, i) => i + 1);
 const DAYS = [1, 2, 3, 4, 5, 6];
 

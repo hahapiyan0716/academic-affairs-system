@@ -21,10 +21,12 @@ from app.models import (
 
 
 def get(db: Session, student_id: str, section_id: int) -> Enrollment | None:
+    """依複合主鍵（學號, 班級）取得選課紀錄，不論狀態"""
     return db.get(Enrollment, (student_id, section_id))
 
 
 def add(db: Session, enrollment: Enrollment) -> None:
+    """加入 Session；實際寫入在 service commit 時"""
     db.add(enrollment)
 
 
@@ -74,6 +76,7 @@ def find_time_conflicts(db: Session, student_id: str, section: Section) -> list[
          AND (mine.weekday, mine.period) IN
              (SELECT weekday, period FROM SectionSchedule WHERE section_id = :target)
     """
+    # 同一張表在查詢中扮演兩個角色（自己的時段、目標班級的時段），以別名區分
     mine = aliased(SectionSchedule)
     target_slots = select(SectionSchedule.weekday, SectionSchedule.period).where(
         SectionSchedule.section_id == section.section_id
@@ -122,6 +125,7 @@ def busy_slots(db: Session, student_id: str, semester_id: str) -> set[tuple[int,
 
 
 def _active_section_ids(student_id: str, semester_id: str) -> Select:
+    """子查詢：學生某學期有效選課的班級 ID（供下方課表查詢的 IN 條件使用）"""
     return (
         select(Enrollment.section_id)
         .join(Section, Section.section_id == Enrollment.section_id)
@@ -134,6 +138,7 @@ def _active_section_ids(student_id: str, semester_id: str) -> Select:
 
 
 def timetable_sections(db: Session, student_id: str, semester_id: str) -> list[SectionDetailView]:
+    """學生某學期有效選課的班級明細（課表下方的課程清單）"""
     return list(
         db.scalars(
             select(SectionDetailView)
@@ -159,10 +164,12 @@ def timetable_slots(db: Session, student_id: str, semester_id: str) -> list[dict
         .where(SectionSchedule.section_id.in_(_active_section_ids(student_id, semester_id)))
         .order_by(SectionSchedule.weekday, SectionSchedule.period)
     )
+    # row._mapping 讓每列可依欄位名稱取值，轉成 dict 後交給 Pydantic 驗證
     return [dict(row._mapping) for row in rows]
 
 
 def transcript_rows(db: Session, student_id: str) -> list[TranscriptView]:
+    """學生歷年成績（新學期在前）"""
     return list(
         db.scalars(
             select(TranscriptView)
@@ -210,6 +217,7 @@ def lock_active_for_grading(db: Session, section_id: int, student_ids: list[str]
 def add_score_log(
     db: Session, student_id: str, section_id: int, old: Decimal | None, new: Decimal | None, changed_by: int
 ) -> None:
+    """新增一筆成績修改稽核紀錄；changed_by 為操作者的 user_id"""
     db.add(
         ScoreChangeLog(student_id=student_id, section_id=section_id, old_score=old, new_score=new, changed_by=changed_by)
     )
