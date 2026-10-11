@@ -4,21 +4,21 @@ Alembic 的 migration 目錄。資料庫結構的唯一來源是 `app/models.py`
 
 ## 檔案
 
-| 檔案 | 內容 |
-| --- | --- |
-| `env.py` | Alembic 執行環境：連線字串取自 `.env` 的 `DATABASE_URL`，比對目標為 `app.models` 的 `Base.metadata`（見下方「env.py 的運作」） |
-| `script.py.mako` | `alembic revision` 產生新 migration 檔時使用的樣板 |
-| `versions/` | 各版本的 migration，每個檔案有 `upgrade()`（升級）與 `downgrade()`（還原） |
+| 檔案               | 內容                                                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `env.py`         | Alembic 執行環境：連線字串取自`.env` 的 `DATABASE_URL`，比對目標為 `app.models` 的 `Base.metadata`（見下方「env.py 的運作」） |
+| `script.py.mako` | `alembic revision` 產生新 migration 檔時使用的樣板                                                                                  |
+| `versions/`      | 各版本的 migration，每個檔案有`upgrade()`（升級）與 `downgrade()`（還原）                                                         |
 
 ## 版本鏈
 
 每個 migration 以 `down_revision` 指向前一版，串成一條鏈：
 
-| 版本 | 檔案 | 內容 | 產生方式 |
-| --- | --- | --- | --- |
-| 0001 | `0001_init.py` | 15 張資料表、CHECK 約束、2 個 View | 對空資料庫執行 `alembic revision --autogenerate`，View 手寫（見下方「0001 的產生方式」） |
-| 0002 | `0002_field_names.py` | 兩個 View 加入 `field_names` 欄位 | 手寫（autogenerate 不處理 View） |
-| 0003 | `0003_token_version.py` | `UserAccount` 新增 `token_version` | `alembic revision --autogenerate` |
+| 版本 | 檔案                      | 內容                                   | 產生方式                                                                                  |
+| ---- | ------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 0001 | `0001_init.py`          | 15 張資料表、CHECK 約束、2 個 View     | 對空資料庫執行`alembic revision --autogenerate`，View 手寫（見下方「0001 的產生方式」） |
+| 0002 | `0002_field_names.py`   | 兩個 View 加入`field_names` 欄位     | 手寫（autogenerate 不處理 View）                                                          |
+| 0003 | `0003_token_version.py` | `UserAccount` 新增 `token_version` | `alembic revision --autogenerate`                                                       |
 
 - 0001 的 `down_revision = None`，表示它前面沒有版本（Alembic 稱為 `base`，即空資料庫）。
 - 資料庫目前的版本記在 `alembic_version` 表（只有一欄 `version_num`）。`alembic upgrade` 依此決定從哪一版開始執行；`alembic current` 讀的也是它。
@@ -36,26 +36,26 @@ Alembic 的 migration 目錄。資料庫結構的唯一來源是 `app/models.py`
 
 ### 兩種模式
 
-| | 離線模式 `run_migrations_offline()` | 一般模式 `run_migrations_online()` |
-| --- | --- | --- |
-| 觸發方式 | 指令加上 `--sql`（例如 `alembic upgrade head --sql`） | 其他所有指令 |
-| 是否連線 | 不連線，把 SQL 印到終端機 | 以 `create_engine` 連上資料庫並執行 |
-| 連線字串的用途 | 只用來判斷方言（MySQL），決定 SQL 語法 | 實際連線 |
-| 參數值 | `literal_binds=True`：值直接寫進 SQL 字串，因為沒有連線可以另外傳參數 | 照一般方式以參數傳送 |
-| 能否 autogenerate | 不能（沒有資料庫可以反射比對） | 能 |
+|                   | 離線模式`run_migrations_offline()`                                    | 一般模式`run_migrations_online()`  |
+| ----------------- | ----------------------------------------------------------------------- | ------------------------------------ |
+| 觸發方式          | 指令加上`--sql`（例如 `alembic upgrade head --sql`）                | 其他所有指令                         |
+| 是否連線          | 不連線，把 SQL 印到終端機                                               | 以`create_engine` 連上資料庫並執行 |
+| 連線字串的用途    | 只用來判斷方言（MySQL），決定 SQL 語法                                  | 實際連線                             |
+| 參數值            | `literal_binds=True`：值直接寫進 SQL 字串，因為沒有連線可以另外傳參數 | 照一般方式以參數傳送                 |
+| 能否 autogenerate | 不能（沒有資料庫可以反射比對）                                          | 能                                   |
 
 ### 各項設定
 
-| 設定 | 模式 | 作用 |
-| --- | --- | --- |
-| `get_settings().database_url` | 兩者 | 連線字串取自 `app/config.py`（`.env` 的 `DATABASE_URL`，可用同名環境變數覆寫），不寫在 `alembic.ini`，避免密碼進入版控 |
-| `target_metadata=target_metadata` | 兩者 | autogenerate 比對的「應有結構」 |
-| `include_object`（`app/migration_support.py`） | 兩者 | 決定哪些物件納入比對：① 略過帶 `info={"is_view": True}` 的 View 類別；② 資料庫有、models 沒有的表（`alembic_version`、View）不提議刪除 |
-| `poolclass=pool.NullPool` | 一般 | migration 是一次性指令，用完即關，不需要連線池 |
-| `patch_case_insensitive_reflection`（`app/migration_support.py`） | 一般 | 偵測到 `lower_case_table_names` 不為 0（Windows 預設為 1）時，把反射回來的小寫表名換回 models 的 PascalCase；否則 autogenerate 會把所有表判定為「缺少」 |
-| `compare_type=True` | 一般 | 欄位型別的差異（例如 `CHAR(4)` → `CHAR(6)`）納入比對 |
-| `compare_server_default=True` | 一般 | `server_default` 的差異納入比對（Alembic 預設不比對） |
-| `with context.begin_transaction():` | 兩者 | 由 Alembic 開啟並 commit 交易；`alembic_version` 的寫入在這個交易中完成 |
+| 設定                                                                  | 模式 | 作用                                                                                                                                                     |
+| --------------------------------------------------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_settings().database_url`                                       | 兩者 | 連線字串取自`app/config.py`（`.env` 的 `DATABASE_URL`，可用同名環境變數覆寫），不寫在 `alembic.ini`，避免密碼進入版控                            |
+| `target_metadata=target_metadata`                                   | 兩者 | autogenerate 比對的「應有結構」                                                                                                                          |
+| `include_object`（`app/migration_support.py`）                    | 兩者 | 決定哪些物件納入比對：① 略過帶`info={"is_view": True}` 的 View 類別；② 資料庫有、models 沒有的表（`alembic_version`、View）不提議刪除              |
+| `poolclass=pool.NullPool`                                           | 一般 | migration 是一次性指令，用完即關，不需要連線池                                                                                                           |
+| `patch_case_insensitive_reflection`（`app/migration_support.py`） | 一般 | 偵測到`lower_case_table_names` 不為 0（Windows 預設為 1）時，把反射回來的小寫表名換回 models 的 PascalCase；否則 autogenerate 會把所有表判定為「缺少」 |
+| `compare_type=True`                                                 | 一般 | 欄位型別的差異（例如`CHAR(4)` → `CHAR(6)`）納入比對                                                                                                 |
+| `compare_server_default=True`                                       | 一般 | `server_default` 的差異納入比對（Alembic 預設不比對）                                                                                                  |
+| `with context.begin_transaction():`                                 | 兩者 | 由 Alembic 開啟並 commit 交易；`alembic_version` 的寫入在這個交易中完成                                                                                |
 
 ### 交易的注意事項
 
@@ -66,9 +66,32 @@ Alembic 的 migration 目錄。資料庫結構的唯一來源是 `app/models.py`
 ## models.py、migration 與 schema.generated.sql 的關係
 
 ```
-models.py ──(alembic revision --autogenerate)──> versions/*.py ──(alembic upgrade head --sql)──> database/schema.generated.sql
-（應有的結構）       比對後產生 Python 指令        （op.create_table…）     翻譯成 SQL、不執行        （CREATE TABLE…，閱讀用）
+① 修改 models.py
+   寫下希望資料庫最終具有的結構
+   ↓
+② 執行 alembic revision --autogenerate
+   env.py 使用 Online 模式：
+   - 讀取 models.py 的應有結構
+   - 連線讀取資料庫的目前結構
+   - 比較兩者的差異
+   ↓
+③ 產生 versions/*.py
+   內容是 op.create_table()、op.add_column() 等 migration 指令，必須先人工檢查
+   因為 View 等等一些結構不出現，所以要先手寫加上去再 alembic upgrade head
+   ↓
+④ 選擇一種執行方式
+
+   A. 直接套用資料庫（一般開發使用）
+      alembic upgrade head
+      versions/*.py → env.py（Online）→ 執行 SQL → 資料庫完成更新
+
+   B. 只產生 SQL 檔（預覽或交給 DBA）
+      alembic upgrade head --sql > database/schema.generated.sql
+      versions/*.py → env.py（Offline）→ database/schema.generated.sql
+      此時資料庫尚未改變；必須另外用 MySQL client 執行 SQL 檔才會套用
 ```
+
+`env.py` 是每次執行 Alembic 指令時的入口，不是流程產生的新檔案。沒有 `--sql` 時使用 Online 模式；加上 `--sql` 時使用 Offline 模式。
 
 - `alembic upgrade head --sql` 是離線模式：不連資料庫，只把會執行的 SQL 依序印出。每個 migration 開頭會有一行 `-- Running upgrade <原版本> -> <新版本>`，結尾以 `INSERT`／`UPDATE alembic_version` 記錄版本。
 - `schema.generated.sql` 重新產生時會整份覆蓋，手寫在裡面的註解不會保留。
@@ -84,12 +107,12 @@ models.py ──(alembic revision --autogenerate)──> versions/*.py ──(al
 
 ## autogenerate 偵測不到、需要手動處理的變更
 
-| 變更 | 原因 | 手動寫法 |
-| --- | --- | --- |
-| 修改 CHECK 約束 | Alembic 不比對 CHECK 約束 | `op.drop_constraint(..., type_="check")` + `op.create_check_constraint(...)` |
-| 新增或修改 View | View 不是資料表；ORM 類別帶 `info={"is_view": True}`，`app/migration_support.py` 的 `include_object` 會略過 | `op.execute("CREATE OR REPLACE VIEW ...")`；downgrade 要還原舊定義（參考 0002 的 `section_detail(with_fields)`） |
-| 從 models.py 刪除資料表 | `include_object` 對「資料庫有、models 沒有」的表一律不提議刪除（避免誤刪 `alembic_version` 與 View） | `op.drop_table(...)`，downgrade 寫回 `op.create_table(...)` |
-| 欄位或資料表改名 | Alembic 無法分辨「改名」與「刪除舊的＋新增新的」，會產生 drop + add，**資料會遺失** | 改成 `op.alter_column(..., new_column_name=...)` 或 `op.rename_table(...)` |
+| 變更                    | 原因                                                                                                             | 手動寫法                                                                                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 修改 CHECK 約束         | Alembic 不比對 CHECK 約束                                                                                        | `op.drop_constraint(..., type_="check")` + `op.create_check_constraint(...)`                                     |
+| 新增或修改 View         | View 不是資料表；ORM 類別帶`info={"is_view": True}`，`app/migration_support.py` 的 `include_object` 會略過 | `op.execute("CREATE OR REPLACE VIEW ...")`；downgrade 要還原舊定義（參考 0002 的 `section_detail(with_fields)`） |
+| 從 models.py 刪除資料表 | `include_object` 對「資料庫有、models 沒有」的表一律不提議刪除（避免誤刪 `alembic_version` 與 View）         | `op.drop_table(...)`，downgrade 寫回 `op.create_table(...)`                                                      |
+| 欄位或資料表改名        | Alembic 無法分辨「改名」與「刪除舊的＋新增新的」，會產生 drop + add，**資料會遺失**                        | 改成`op.alter_column(..., new_column_name=...)` 或 `op.rename_table(...)`                                        |
 
 另外，models.py 中的 `server_default`（寫進 DDL）會被比對（`env.py` 設定了 `compare_server_default=True`）；只在 Python 端生效的 `default=` 不會出現在 migration 中。
 

@@ -1,7 +1,8 @@
 """初始結構：15 張資料表、CHECK 約束與 2 個 View
 
 產生方式：對空資料庫執行 alembic revision --autogenerate，由 api/app/models.py 比對後產生建表指令；
-View 不在 autogenerate 的範圍內，以 op.execute 手寫（詳見 migrations/README.md）。
+因為 View 不在 autogenerate 的範圍內，所以用 op.execute 手寫（詳見 migrations/README.md）。
+再執行 alembic upgrade head 產生最終的資料庫結構。
 
 Revision ID: 0001
 Revises:
@@ -218,7 +219,7 @@ def upgrade() -> None:
     op.create_index('ScoreChangeLog_student_id_section_id_idx', 'ScoreChangeLog', ['student_id', 'section_id'], unique=False)
     # ### end Alembic commands ###
 
-    # ### View：Alembic autogenerate 不處理 View，以 SQL 建立 ###
+    # ### View：Alembic autogenerate 不處理 View，直接寫 SQL 指令建立 ###
     # View：開課班級明細（課程 + 學期 + 教師 + 時段 + 已選人數）
     # 使用相關子查詢而非多重 JOIN，避免教師 × 時段 × 選課列數相乘（fan-out）造成計數錯誤
     op.execute(
