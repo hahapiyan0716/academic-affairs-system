@@ -214,6 +214,69 @@ WHERE `Student`.student_id = %s FOR UPDATE
 
 models 類別本身就是 Python 類別，`Student`、`Student.student_id` 可以直接用在查詢裡，型別也直接寫在 `Mapped[...]` 中，不需要另外產生程式碼。
 
+#### `add()`、`flush()`、`commit()` 與 `rollback()`
+
+Transaction（交易）是一組要一起成功或一起取消的資料庫操作。例如建立使用者時，可能同時新增帳號、回填教師的 `user_id`、寫入稽核紀錄；若中途失敗，不應只留下其中一部分。
+
+```text
+db.add()
+   ↓
+物件加入 Session，成為 pending
+   ↓
+flush
+   ↓
+SQL 已送到資料庫執行，但仍在 Transaction 中
+   ↓
+commit：正式保留全部變更
+或
+rollback：取消尚未 commit 的變更
+```
+
+| 操作 | 意義 |
+| --- | --- |
+| `db.add(obj)` | 把 ORM 物件交給 Session 追蹤，不保證此刻已執行 `INSERT` |
+| `db.flush()` | 立即送出尚未執行的 `INSERT`／`UPDATE`／`DELETE`，但不結束 Transaction |
+| `db.commit()` | commit 前先自動 flush，再確認整個 Transaction，讓變更正式保留 |
+| `db.rollback()` | 取消目前 Transaction 中尚未 commit 的變更 |
+
+`flush()` 常用在同一個 Transaction 中必須先取得資料庫產生值的情況，例如自動遞增主鍵：
+
+```python
+admin = UserAccount(username="admin", ...)
+db.add(admin)
+db.flush()  # INSERT 已執行，因此現在可以取得 admin.user_id；但仍未 commit
+
+db.add(TeacherPermissionLog(changed_by=admin.user_id, ...))
+```
+
+如果後面不需要立刻使用新資料的主鍵，就不必手動 `flush()`；離開 `db.begin()` 時，commit 前會自動 flush：
+
+```python
+with Session(engine) as db, db.begin():
+    db.add(TeacherPermissionLog(...))
+    # 正常離開：自動 flush → commit
+    # 發生例外：rollback，不留下只完成一半的資料
+```
+
+上面的多重 context manager 等同於巢狀寫法：
+
+```python
+with Session(engine) as db:
+    with db.begin():
+        ...
+```
+
+離開時順序相反：先結束 `db.begin()`，完成 commit 或 rollback；再執行 `Session.close()`，釋放 Session 持有的連線與 ORM 狀態。
+
+這裡的 commit 是「資料庫 Transaction 的提交」，與 Git commit 不同：
+
+| 名稱 | 保存內容 |
+| --- | --- |
+| 資料庫 commit | 確認 `INSERT`、`UPDATE`、`DELETE` 等資料變更 |
+| Git commit | 保存程式碼與文件的版本紀錄 |
+
+> 注意：以上 rollback 說明主要適用於一般資料異動（DML）。MySQL 的 `CREATE TABLE`、`ALTER TABLE` 等 DDL 會自動 commit，通常無法 rollback。
+
 ### 3.3 SQLAlchemy 的 Session 不是登入的 session
 
 兩者只是剛好都叫 session，是完全不同的東西：

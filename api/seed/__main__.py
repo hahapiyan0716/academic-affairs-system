@@ -113,11 +113,29 @@ def seed(password: str) -> None:
     # 因此執行到這裡時，Transaction 已經提交且 Session 已經關閉；不是先關閉 Session 再提交。
     print(f"已建立帳號：admin ×1、教師 ×{len(teachers)}、學生 ×{len(students)}")
 
+    # 名詞整理：
+    # - db.add()：把 ORM 物件交給 Session 追蹤，尚不保證已送出 INSERT。
+    # - flush：把 INSERT／UPDATE／DELETE 送到資料庫執行，但仍在 Transaction 中，可以 rollback。
+    # - commit：確認整個 Transaction，讓這批資料變更正式保留；commit 前會自動 flush。
+    # - rollback：取消目前 Transaction 中尚未 commit 的變更。
+    # 這裡的 commit 是「資料庫交易提交」；Git commit 則是保存程式碼版本，兩者沒有直接關係。
+
 
 def main() -> None:
     """解析命令列參數；需要重建時先 reset_schema 再寫入種子資料"""
+    # 建立命令列參數解析器：
+    # - prog 決定 --help 中顯示的程式名稱／用法，例如「usage: python -m seed ...」。
+    # - description 是執行 python -m seed --help 時顯示的功能說明。
     parser = argparse.ArgumentParser(prog="python -m seed", description="寫入種子資料")
+
+    # 註冊可選旗標 --reset：
+    # - 沒有輸入 --reset 時，args.reset 預設為 False。
+    # - 有輸入 --reset 時，action="store_true" 會把 args.reset 設為 True；它不需要另外接值。
+    # - help 是 --help 畫面中顯示的參數說明。
     parser.add_argument("--reset", action="store_true", help="先清空並重建資料庫結構")
+
+    # 讀取並驗證 sys.argv 中的命令列參數，回傳 Namespace 物件；上面的 --reset 可用 args.reset 取得。
+    # 若使用未知參數或格式錯誤，argparse 會顯示錯誤與用法後結束程式。
     args = parser.parse_args()
 
     password = get_settings().seed_password
