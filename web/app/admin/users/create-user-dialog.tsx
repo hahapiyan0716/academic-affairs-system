@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -15,11 +16,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { api, useApi } from "@/lib/api";
+import { api, useApiQuery, useInvalidate } from "@/lib/api";
 import type { Department, Role } from "@/types";
 
 /** 「新增帳號」按鈕與對話框；依身分顯示不同的個人資料欄位 */
-export default function CreateUserDialog({ onCreated }: { onCreated: () => void }) {
+export default function CreateUserDialog() {
   const [open, setOpen] = useState(false);
   const [role, setRole] = useState<Role>("Student");
   // 教師與學生共用 id、name 欄位，送出時再依身分對應成 teacher_id／student_id 等
@@ -34,12 +35,24 @@ export default function CreateUserDialog({ onCreated }: { onCreated: () => void 
     degree: "0",
   });
   // 對話框開啟時才讀取系所清單
-  const { data: depts } = useApi<Department[]>(open ? "/api/admin/departments" : null);
+  const { data: depts } = useApiQuery<Department[]>(open ? "/api/admin/departments" : null);
+  const invalidate = useInvalidate();
+  const create = useMutation({
+    mutationFn: (body: object) => api("/api/admin/users", { method: "POST", json: body }),
+    onSuccess: () => {
+      toast.success(`已建立帳號 ${form.username}`);
+      // 本對話框不會卸載，表單內容會保留到下次開啟
+      setOpen(false);
+      // 新教師會出現在教師權限頁與合授教師選單；新學生會改變總覽的在學人數
+      invalidate("/api/admin/users", "/api/admin/teachers", "/api/admin/stats", "/api/teachers");
+    },
+    onError: (err) => toast.error(err.message),
+  });
   // 產生 <Input> 的 onChange：set("username") 會更新 form.username
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  async function submit(e: React.FormEvent) {
+  function submit(e: React.FormEvent) {
     e.preventDefault();
     const base = { role, username: form.username, password: form.password };
     // 請求格式依 role 而不同（對應後端 UserCreateIn 的 discriminated union）；教師的系所為選填
@@ -59,15 +72,7 @@ export default function CreateUserDialog({ onCreated }: { onCreated: () => void 
               },
             }
           : base;
-    try {
-      await api("/api/admin/users", { method: "POST", json: body });
-      toast.success(`已建立帳號 ${form.username}`);
-      // 本對話框不會卸載，表單內容會保留到下次開啟
-      setOpen(false);
-      onCreated();
-    } catch (err) {
-      toast.error((err as Error).message);
-    }
+    create.mutate(body);
   }
 
   return (
@@ -160,7 +165,9 @@ export default function CreateUserDialog({ onCreated }: { onCreated: () => void 
             </div>
           )}
           <DialogFooter>
-            <Button type="submit">建立</Button>
+            <Button type="submit" disabled={create.isPending}>
+              建立
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

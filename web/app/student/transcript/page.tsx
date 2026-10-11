@@ -4,16 +4,16 @@ import { EmptyState, ErrorState, LoadingState, PageHeader } from "@/components/c
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useApi } from "@/lib/api";
+import { useApiQuery } from "@/lib/api";
 import { COURSE_TYPE, semesterLabel } from "@/lib/labels";
 import type { Transcript } from "@/types";
 
 /** 歷年成績：依學期分組列出成績，並顯示實得學分與加權平均（計算在後端完成） */
 export default function TranscriptPage() {
-  const { data, error, loading } = useApi<Transcript>("/api/me/transcript");
+  const { data, error, isPending } = useApiQuery<Transcript>("/api/me/transcript");
 
-  if (loading && !data) return <LoadingState />;
-  if (error || !data) return <ErrorState message={error ?? "無法載入資料"} />;
+  if (isPending) return <LoadingState />;
+  if (error || !data) return <ErrorState message={error?.message ?? "無法載入資料"} />;
 
   return (
     <>

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useApi } from "@/lib/api";
+import { useApiQuery } from "@/lib/api";
 import { COURSE_TYPE, compactSchedule, semesterLabel } from "@/lib/labels";
 import type { Section } from "@/types";
 
@@ -17,10 +17,8 @@ export default function TeacherHome() {
   // 空字串 = 全部學期
   const [semester, setSemester] = useState("");
   // 開課權限即時查資料庫（不在 JWT 中），決定是否顯示「新增開課」按鈕
-  const { data: me } = useApi<{ teacher_name: string; can_open_section: boolean }>("/api/teacher/me");
-  const { data, error, loading } = useApi<Section[]>(
-    `/api/teacher/sections${semester ? `?semester_id=${semester}` : ""}`,
-  );
+  const { data: me } = useApiQuery<{ teacher_name: string; can_open_section: boolean }>("/api/teacher/me");
+  const { data, error, isPending } = useApiQuery<Section[]>("/api/teacher/sections", { semester_id: semester });
 
   return (
     <>
@@ -39,11 +37,11 @@ export default function TeacherHome() {
       </PageHeader>
       <Card>
         <CardContent className="p-0">
-          {loading && !data ? (
+          {isPending ? (
             <LoadingState />
           ) : error ? (
             <div className="p-4">
-              <ErrorState message={error} />
+              <ErrorState message={error.message} />
             </div>
           ) : !data?.length ? (
             <EmptyState message="此條件下沒有授課班級" />

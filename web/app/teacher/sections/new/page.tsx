@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -10,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { api, useApi } from "@/lib/api";
+import { api, SECTION_VIEWS, useApiQuery, useInvalidate } from "@/lib/api";
 import { semesterLabel } from "@/lib/labels";
 import type { CourseBrief, Room, Section, Semester } from "@/types";
 import SlotGrid from "./slot-grid";
@@ -19,11 +20,13 @@ import SlotGrid from "./slot-grid";
 export default function NewSectionPage() {
   const router = useRouter();
   // 表單所需的資料各自讀取；只有 me（開課權限）決定是否顯示表單，因此只等待它載入
-  const { data: me, loading } = useApi<{ teacher_id: string; can_open_section: boolean }>("/api/teacher/me");
-  const { data: semesters } = useApi<Semester[]>("/api/semesters");
-  const { data: courses } = useApi<CourseBrief[]>("/api/courses");
-  const { data: rooms } = useApi<Room[]>("/api/rooms");
-  const { data: teachers } = useApi<{ teacher_id: string; teacher_name: string }[]>("/api/teachers");
+  const { data: me, isPending } = useApiQuery<{ teacher_id: string; can_open_section: boolean }>(
+    "/api/teacher/me",
+  );
+  const { data: semesters } = useApiQuery<Semester[]>("/api/semesters");
+  const { data: courses } = useApiQuery<CourseBrief[]>("/api/courses");
+  const { data: rooms } = useApiQuery<Room[]>("/api/rooms");
+  const { data: teachers } = useApiQuery<{ teacher_id: string; teacher_name: string }[]>("/api/teachers");
 
   // 只列出可開課的學期（與後端 section_service 的 OPENABLE 一致）
   const openable = useMemo(
@@ -40,10 +43,22 @@ export default function NewSectionPage() {
   const [coTeachers, setCoTeachers] = useState<string[]>([]);
   // 已選時段，元素格式為 "星期-節次"（例如 "4-5"）
   const [slots, setSlots] = useState<Set<string>>(new Set());
-  const [submitting, setSubmitting] = useState(false);
+  const invalidate = useInvalidate();
+
+  /** 送出開課；衝堂、教室衝突等規則由後端檢查，失敗時顯示後端訊息 */
+  const create = useMutation({
+    mutationFn: (body: object) => api<Section>("/api/teacher/sections", { method: "POST", json: body }),
+    onSuccess: (section) => {
+      toast.success(`已開設 ${section.course_name}（${section.course_no}-${section.section_code}）`);
+      // 新班級會出現在我的開課、學生加退選與歷年開課；管理員頁面的開班數也會改變
+      invalidate(...SECTION_VIEWS, "/api/admin/semesters", "/api/admin/courses");
+      router.push("/teacher");
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
   // 提前 return 必須放在所有 Hook 之後，否則 Hook 的呼叫順序會隨狀態改變
-  if (loading) return <LoadingState />;
+  if (isPending) return <LoadingState />;
   if (!me?.can_open_section) {
     return (
       <>
@@ -64,35 +79,22 @@ export default function NewSectionPage() {
     });
   }
 
-  /** 送出開課；衝堂、教室衝突等規則由後端檢查，失敗時顯示後端訊息 */
-  async function submit(e: React.FormEvent) {
+  function submit(e: React.FormEvent) {
     e.preventDefault();
     // Select 元件不支援原生的 required 驗證，這裡手動檢查
     if (!semesterId || !courseNo || !room) return toast.error("請選擇學期、課程與教室");
     if (slots.size === 0) return toast.error("請至少選擇一個上課時段");
-    setSubmitting(true);
-    try {
-      const section = await api<Section>("/api/teacher/sections", {
-        method: "POST",
-        json: {
-          course_no: courseNo,
-          semester_id: semesterId,
-          section_code: sectionCode,
-          capacity: Number(capacity),
-          co_teacher_ids: coTeachers,
-          slots: [...slots].map((k) => {
-            const [weekday, period] = k.split("-").map(Number);
-            return { weekday, period, room_code: room };
-          }),
-        },
-      });
-      toast.success(`已開設 ${section.course_name}（${section.course_no}-${section.section_code}）`);
-      router.push("/teacher");
-    } catch (err) {
-      toast.error((err as Error).message);
-      // 只在失敗時解除送出狀態；成功時即將換頁，保持按鈕停用以免重複開課
-      setSubmitting(false);
-    }
+    create.mutate({
+      course_no: courseNo,
+      semester_id: semesterId,
+      section_code: sectionCode,
+      capacity: Number(capacity),
+      co_teacher_ids: coTeachers,
+      slots: [...slots].map((k) => {
+        const [weekday, period] = k.split("-").map(Number);
+        return { weekday, period, room_code: room };
+      }),
+    });
   }
 
   return (
@@ -203,7 +205,8 @@ export default function NewSectionPage() {
           </CardHeader>
           <CardContent>
             <SlotGrid selected={slots} onToggle={toggleSlot} />
-            <Button type="submit" className="mt-4 w-full" disabled={submitting}>
+            {/* 成功後即將換頁，isSuccess 時也保持停用，以免重複開課 */}
+            <Button type="submit" className="mt-4 w-full" disabled={create.isPending || create.isSuccess}>
               建立開課班級
             </Button>
           </CardContent>

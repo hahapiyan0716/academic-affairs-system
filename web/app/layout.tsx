@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { QueryProvider } from "@/components/query-provider";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -19,12 +20,12 @@ export const metadata: Metadata = {
   description: "輕量化教務管理系統：開課、選課、成績與歷年查詢",
 };
 
-/** 根版面：所有頁面共用的 <html>／<body> 與全域提示訊息（toast） */
+/** 根版面：所有頁面共用的 <html>／<body>、資料快取（TanStack Query）與全域提示訊息（toast） */
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="zh-Hant-TW" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col bg-muted/30">
-        {children}
+        <QueryProvider>{children}</QueryProvider>
         <Toaster richColors position="top-center" />
       </body>
     </html>

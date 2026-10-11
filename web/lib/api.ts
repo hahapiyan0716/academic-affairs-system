@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
 
 /** 整頁導向站內路徑（登入／登出需要讓 proxy 與 Server Component 以新的 cookie 重新判斷） */
 export function hardNavigate(path: string) {
@@ -66,36 +67,50 @@ export async function api<T>(path: string, init?: RequestInit & { json?: unknown
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
 
+/** 查詢參數：空字串與 undefined 視為「不篩選」，不會出現在網址與 query key 中 */
+export type QueryParams = Record<string, string | undefined>;
+
 /**
- * 簡易資料讀取 hook：回傳資料、錯誤、載入中狀態，以及重新讀取的函式。
+ * 以 TanStack Query 讀取 GET API。
+ * query key 為 [path, 參數]，寫入後可用 useInvalidate(path) 讓同一路徑「所有參數組合」的快取一起失效。
  * path 為 null 時不發請求（用於「等其他資料載入後才知道要查什麼」的情況）。
  */
-export function useApi<T>(path: string | null) {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // 每次 reload 加 1，讓 key 改變而觸發 effect 重新請求同一個 path
-  const [version, setVersion] = useState(0);
-  // 記錄「最後完成的是哪一次請求」，載入中狀態由此推導，不需在 effect 內同步 setState
-  const [settledKey, setSettledKey] = useState<string | null>(null);
-  const key = path === null ? null : `${path}#${version}`;
+export function useApiQuery<T>(path: string | null, params?: QueryParams) {
+  const filtered = Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v)) as Record<string, string>;
+  const search = new URLSearchParams(filtered).toString();
+  return useQuery({
+    queryKey: [path, filtered],
+    queryFn: ({ signal }) => api<T>(search ? `${path}?${search}` : path!, { signal }),
+    enabled: path !== null,
+    // 換篩選條件時保留上一份結果直到新資料回來，畫面不會閃回「載入中」
+    placeholderData: keepPreviousData,
+  });
+}
 
-  useEffect(() => {
-    if (path === null || key === null) return;
-    // path 改變或元件卸載時，舊請求的結果不再寫入狀態，避免慢回應覆蓋新資料
-    let cancelled = false;
-    api<T>(path)
-      .then((d) => {
-        if (cancelled) return;
-        setData(d);
-        setError(null);
-      })
-      .catch((e: Error) => !cancelled && setError(e.message))
-      .finally(() => !cancelled && setSettledKey(key));
-    return () => {
-      cancelled = true;
-    };
-  }, [path, key]);
+/**
+ * 資料來自 v_section_detail／v_student_transcript 的查詢（含課名、領域、人數、成績）。
+ * 課程、班級、選課或成績變動時，這些畫面都可能需要更新
+ */
+export const SECTION_VIEWS = [
+  "/api/sections",
+  "/api/history/sections",
+  "/api/teacher/sections",
+  "/api/me/timetable",
+  "/api/me/transcript",
+];
 
-  const reload = useCallback(() => setVersion((v) => v + 1), []);
-  return { data, error, loading: key !== null && settledKey !== key, reload };
+/**
+ * 回傳一個函式：讓指定路徑的查詢快取失效，畫面上正在使用的查詢會立即重新請求。
+ * 寫入成功後呼叫，例如加退選後 invalidate("/api/sections", "/api/me/timetable")。
+ * 不傳路徑時讓全部查詢失效，用於影響範圍很廣的變更（例如學期狀態）。
+ */
+export function useInvalidate() {
+  const client = useQueryClient();
+  return useCallback(
+    (...paths: string[]) =>
+      paths.length === 0
+        ? client.invalidateQueries()
+        : Promise.all(paths.map((p) => client.invalidateQueries({ queryKey: [p] }))),
+    [client],
+  );
 }

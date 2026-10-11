@@ -1,31 +1,33 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ErrorState, LoadingState, PageHeader } from "@/components/common";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { api, useApi } from "@/lib/api";
+import { api, useApiQuery, useInvalidate } from "@/lib/api";
 import type { AdminTeacher } from "@/types";
 
 /** 教師開課權限：列出教師與最近一次權限異動，可切換授予／收回 */
 export default function TeacherPermissionPage() {
-  const { data, error, loading, reload } = useApi<AdminTeacher[]>("/api/admin/teachers");
+  const { data, error, isPending } = useApiQuery<AdminTeacher[]>("/api/admin/teachers");
+  const invalidate = useInvalidate();
 
   /** 切換開課權限；後端會同時寫入稽核紀錄 */
-  async function toggle(t: AdminTeacher) {
-    try {
-      await api(`/api/admin/teachers/${t.teacher_id}/permission`, {
+  const toggle = useMutation({
+    mutationFn: (t: AdminTeacher) =>
+      api(`/api/admin/teachers/${t.teacher_id}/permission`, {
         method: "PATCH",
         json: { can_open_section: !t.can_open_section },
-      });
+      }),
+    onSuccess: (_, t) => {
       toast.success(`已${t.can_open_section ? "收回" : "授予"} ${t.teacher_name} 的開課權限`);
-      reload();
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  }
+      invalidate("/api/admin/teachers", "/api/admin/stats");
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   return (
     <>
@@ -35,11 +37,11 @@ export default function TeacherPermissionPage() {
       />
       <Card>
         <CardContent className="p-0">
-          {loading && !data ? (
+          {isPending ? (
             <LoadingState />
           ) : error ? (
             <div className="p-4">
-              <ErrorState message={error} />
+              <ErrorState message={error.message} />
             </div>
           ) : (
             <Table>
@@ -74,7 +76,11 @@ export default function TeacherPermissionPage() {
                           : "—"}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Switch checked={t.can_open_section} onCheckedChange={() => toggle(t)} />
+                        <Switch
+                          checked={t.can_open_section}
+                          disabled={toggle.isPending}
+                          onCheckedChange={() => toggle.mutate(t)}
+                        />
                       </TableCell>
                     </TableRow>
                   );

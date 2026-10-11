@@ -117,6 +117,10 @@ npx next build
 - 不使用 `src/`；路徑別名 `@/*` 指向 `web/` 根目錄（`@/lib/api`、`@/types`、`@/components/...`）。
 - **頁面專屬的元件放在頁面旁**，以 `export default` 匯出、用相對路徑 import（例如 `admin/users/create-user-dialog.tsx`、`student/timetable/timetable-grid.tsx`）；跨頁共用的才放 `web/components/`。
 - Next.js 16：`middleware` 已更名為 `proxy`；`cookies()` 為非同步。`web/AGENTS.md` 要求先閱讀 `node_modules/next/dist/docs/` 的對應文件再寫程式。
-- 頁面多為 Client Component，以 `useApi()`（`lib/api.ts`）讀取資料；角色外框 `AppShell` 是 Server Component。`types.ts` 的型別需與 `api/app/schemas/` 的回應模型保持一致。
-- ESLint 啟用 React 19 的 `react-hooks/set-state-in-effect`：不要在 effect 內同步呼叫 setState，改用從狀態推導值的寫法（參考 `useApi` 與 `section-settings.tsx` 的 `capacityEdit`）。
+- 頁面多為 Client Component；角色外框 `AppShell` 是 Server Component。`types.ts` 的型別需與 `api/app/schemas/` 的回應模型保持一致。
+- 資料讀寫使用 TanStack Query（`components/query-provider.tsx` 掛在根版面）：
+  - 讀取用 `useApiQuery(path, params)`（`lib/api.ts`），query key 為 `[path, 參數]`；空字串參數會被濾掉，不出現在網址與 key 中。
+  - 寫入用 `useMutation`，成功後以 `useInvalidate()` 讓相關路徑失效（同一路徑所有參數組合一起失效）；顯示班級明細的查詢集中在 `SECTION_VIEWS`。新增 API 或寫入時，要想清楚「哪些畫面會因此改變」並一起失效。
+  - `useMutation` 也是 Hook，必須宣告在提前 return 之前。
+- ESLint 啟用 React 19 的 `react-hooks/set-state-in-effect`：不要在 effect 內同步呼叫 setState，改用從狀態推導值的寫法（參考 `section-settings.tsx` 的 `capacityEdit`）。
 - shadcn 元件從 `"cn"` 套件匯入 `cn`（shadcn 官方套件，取代 clsx + tailwind-merge）；`components.json` 的別名指向 `@/components`。

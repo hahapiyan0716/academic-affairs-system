@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -16,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { api, useApi } from "@/lib/api";
+import { api, useApiQuery, useInvalidate } from "@/lib/api";
 import { COURSE_TYPE, compactSchedule, semesterLabel } from "@/lib/labels";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import type { BrowseSection, Semester } from "@/types";
@@ -31,38 +32,30 @@ export default function EnrollPage() {
   const keyword = useDebouncedValue(q.trim());
   // 領域為下拉選單，選定即查詢，不需延遲
   const [field, setField] = useState("");
-  // 正在送出加退選請求的班級，用來停用該列按鈕、防止重複點擊
-  const [busy, setBusy] = useState<number | null>(null);
-  const { data: semesters } = useApi<Semester[]>("/api/semesters");
+  const { data: semesters } = useApiQuery<Semester[]>("/api/semesters");
   const current = semesters?.find((s) => s.is_current);
   // 不帶 semester_id 時，後端預設查詢目前學期
-  const params = new URLSearchParams();
-  if (keyword) params.set("q", keyword);
-  if (field) params.set("field", field);
-  const { data, error, loading, reload } = useApi<BrowseSection[]>(`/api/sections?${params}`);
+  const { data, error, isPending } = useApiQuery<BrowseSection[]>("/api/sections", { q: keyword, field });
   // 只用來決定按鈕是否可按；真正的限制由後端檢查
   const enrolling = current?.status === "Enrolling";
+  const invalidate = useInvalidate();
 
-  /** 加選（withdraw = false）或退選（withdraw = true），完成後不論成敗都重新讀取列表 */
-  async function act(s: BrowseSection, withdraw: boolean) {
-    setBusy(s.section_id);
-    try {
-      if (withdraw) {
-        await api(`/api/enrollments/${s.section_id}`, { method: "DELETE" });
-        toast.success(`已退選 ${s.course_name}`);
-      } else {
-        await api("/api/enrollments", { method: "POST", json: { section_id: s.section_id } });
-        toast.success(`加選成功：${s.course_name}`);
-      }
-    } catch (e) {
-      // 額滿、衝堂、重複修課等規則由後端判斷，訊息直接呈現
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(null);
-      // 失敗時也重新讀取：例如額滿是因為別人剛搶走名額，需要更新畫面上的人數
-      reload();
-    }
-  }
+  /** 加選（withdraw = false）或退選（withdraw = true） */
+  const enrollment = useMutation({
+    mutationFn: ({ s, withdraw }: { s: BrowseSection; withdraw: boolean }) =>
+      withdraw
+        ? api(`/api/enrollments/${s.section_id}`, { method: "DELETE" })
+        : api("/api/enrollments", { method: "POST", json: { section_id: s.section_id } }),
+    onSuccess: (_, { s, withdraw }) =>
+      toast.success(withdraw ? `已退選 ${s.course_name}` : `加選成功：${s.course_name}`),
+    // 額滿、衝堂、重複修課等規則由後端判斷，訊息直接呈現
+    onError: (e) => toast.error(e.message),
+    // 失敗時也重新讀取：例如額滿是因為別人剛搶走名額，需要更新畫面上的人數。
+    // 課表與成績單也列出本學期已選的課，一併失效，切換到那些頁面時才不會看到舊資料
+    onSettled: () => invalidate("/api/sections", "/api/me/timetable", "/api/me/transcript"),
+  });
+  // 正在送出請求的那一列停用按鈕，防止重複點擊
+  const busy = (s: BrowseSection) => enrollment.isPending && enrollment.variables?.s.section_id === s.section_id;
 
   return (
     <>
@@ -88,11 +81,11 @@ export default function EnrollPage() {
       )}
       <Card>
         <CardContent className="p-0">
-          {loading && !data ? (
+          {isPending ? (
             <LoadingState />
           ) : error ? (
             <div className="p-4">
-              <ErrorState message={error} />
+              <ErrorState message={error.message} />
             </div>
           ) : !data?.length ? (
             <EmptyState message="沒有符合條件的開課班級" />
@@ -141,16 +134,16 @@ export default function EnrollPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            disabled={!enrolling || busy === s.section_id}
-                            onClick={() => act(s, true)}
+                            disabled={!enrolling || busy(s)}
+                            onClick={() => enrollment.mutate({ s, withdraw: true })}
                           >
                             退選
                           </Button>
                         ) : (
                           <Button
                             size="sm"
-                            disabled={!enrolling || busy === s.section_id}
-                            onClick={() => act(s, false)}
+                            disabled={!enrolling || busy(s)}
+                            onClick={() => enrollment.mutate({ s, withdraw: false })}
                           >
                             加選
                           </Button>

@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useApi } from "@/lib/api";
+import { useApiQuery } from "@/lib/api";
 import { ENROLLMENT_STATUS, SEMESTER_STATUS, semesterLabel } from "@/lib/labels";
 import type { Semester } from "@/types";
 
@@ -83,7 +83,7 @@ export function SemesterSelect({
   onChange: (v: string) => void;
   allowAll?: boolean;
 }) {
-  const { data } = useApi<Semester[]>("/api/semesters");
+  const { data } = useApiQuery<Semester[]>("/api/semesters");
   return (
     // Radix Select 不允許空字串作為選項值，因此「全部學期」在元件內部以 "__all" 代表
     <Select value={value || "__all"} onValueChange={(v) => onChange(v === "__all" ? "" : v)}>
@@ -105,7 +105,7 @@ export function SemesterSelect({
 
 /** 課程領域下拉選單；第一個選項「全部領域」的值為空字串 */
 export function FieldSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const { data } = useApi<string[]>("/api/fields");
+  const { data } = useApiQuery<string[]>("/api/fields");
   return (
     <Select value={value || "__all"} onValueChange={(v) => onChange(v === "__all" ? "" : v)}>
       <SelectTrigger className="w-36">

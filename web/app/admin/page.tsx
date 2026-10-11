@@ -3,7 +3,7 @@
 import { BookOpen, CalendarDays, KeyRound, Users } from "lucide-react";
 import { ErrorState, LoadingState, PageHeader, SemesterStatusBadge } from "@/components/common";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useApi } from "@/lib/api";
+import { useApiQuery } from "@/lib/api";
 import { semesterLabel } from "@/lib/labels";
 import type { Semester } from "@/types";
 
@@ -18,10 +18,10 @@ interface Stats {
 
 /** 管理員首頁：統計數字與目前學期 */
 export default function AdminDashboard() {
-  const { data, error, loading } = useApi<Stats>("/api/admin/stats");
+  const { data, error, isPending } = useApiQuery<Stats>("/api/admin/stats");
 
-  if (loading) return <LoadingState />;
-  if (error || !data) return <ErrorState message={error ?? "無法載入資料"} />;
+  if (isPending) return <LoadingState />;
+  if (error || !data) return <ErrorState message={error?.message ?? "無法載入資料"} />;
 
   // 上方四格統計卡片
   const tiles = [

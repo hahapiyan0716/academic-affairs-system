@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useApi } from "@/lib/api";
+import { useApiQuery } from "@/lib/api";
 import { COURSE_TYPE, compactSchedule, semesterLabel } from "@/lib/labels";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import type { HistorySection } from "@/types";
@@ -25,12 +25,12 @@ export function HistorySections() {
   // 單行輸入框無法輸入換行，因此以 \n 分隔不會與內容衝突。
   const filters = useDebouncedValue(`${q.trim()}\n${teacher.trim()}`);
   const [keyword, teacherName] = filters.split("\n");
-  // 搜尋條件改變 → path 改變 → useApi 自動重新請求
-  const params = new URLSearchParams();
-  if (keyword) params.set("q", keyword);
-  if (teacherName) params.set("teacher", teacherName);
-  if (field) params.set("field", field);
-  const { data, error, loading } = useApi<HistorySection[]>(`/api/history/sections?${params}`);
+  // 搜尋條件改變 → query key 改變 → 自動重新請求（同一組條件查過的結果會直接從快取顯示）
+  const { data, error, isPending } = useApiQuery<HistorySection[]>("/api/history/sections", {
+    q: keyword,
+    teacher: teacherName,
+    field,
+  });
 
   return (
     <>
@@ -41,11 +41,11 @@ export function HistorySections() {
       </PageHeader>
       <Card>
         <CardContent className="p-0">
-          {loading && !data ? (
+          {isPending ? (
             <LoadingState />
           ) : error ? (
             <div className="p-4">
-              <ErrorState message={error} />
+              <ErrorState message={error.message} />
             </div>
           ) : !data?.length ? (
             <EmptyState message="查無開課紀錄" />

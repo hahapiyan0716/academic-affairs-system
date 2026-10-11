@@ -17,7 +17,8 @@ api 必須同時開著（另一個終端機），否則登入與所有資料都�
 
 - `next.config.ts` 的 rewrites 把 `/api/*` 轉發到 api（預設 `http://localhost:8000`，可在 `.env.local` 以 `API_URL` 修改）。瀏覽器只看到 `localhost:3000` 一個來源，因此 cookie 自動帶上、不需要 CORS。
 - `proxy.ts` 以 `JWT_SECRET` 驗證 cookie，**只負責頁面導向**：未登入導向 `/login`、走錯角色導回自己的首頁。真正的權限由 api 檢查。
-- `lib/api.ts` 的 `api()` 與 `useApi()` 是呼叫 API 的唯一入口；錯誤訊息取自回應的 `detail`。
+- `lib/api.ts` 的 `api()` 是呼叫 API 的唯一入口；錯誤訊息取自回應的 `detail`。
+- 資料讀寫透過 TanStack Query：讀取用 `useApiQuery()`，寫入用 `useMutation` 搭配 `useInvalidate()` 讓相關畫面的快取失效。
 - `types.ts` 的型別對應 api 的回應模型（`api\app\schemas\`），兩邊要一起改。
 
 ## 資料夾
@@ -31,8 +32,9 @@ app\
 ├─ layout.tsx            全站版面
 └─ globals.css
 components\              跨頁共用：AppShell（各角色外框）、導覽列、登出、common（載入中、錯誤、徽章、學期與領域選單）、
-                         history-sections（學生與教師共用的歷年開課畫面）、ui\（shadcn）
-lib\                     api.ts（呼叫 API）、session.ts（驗證 JWT）、labels.ts（列舉 → 中文）、utils.ts
+                         history-sections（學生與教師共用的歷年開課畫面）、query-provider（TanStack Query）、ui\（shadcn）
+lib\                     api.ts（呼叫 API、useApiQuery、useInvalidate）、session.ts（驗證 JWT）、labels.ts（列舉 → 中文）、
+                         use-debounced-value.ts（搜尋框延遲送出）、utils.ts
 proxy.ts                 路由保護（Next.js 16 起 middleware 更名為 proxy）
 types.ts                 與 api 回應對應的型別
 ```

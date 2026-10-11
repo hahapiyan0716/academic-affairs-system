@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -10,41 +11,40 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { api, useApi } from "@/lib/api";
+import { api, useApiQuery, useInvalidate } from "@/lib/api";
 import { SEMESTER_STATUS, semesterLabel } from "@/lib/labels";
 import type { Semester } from "@/types";
 
 /** 學期管理：新增學期、切換學期狀態、設定目前學期 */
 export default function SemestersPage() {
-  const { data, error, loading, reload } = useApi<Semester[]>("/api/admin/semesters");
+  const { data, error, isPending } = useApiQuery<Semester[]>("/api/admin/semesters");
   // 新增學期表單的學年與學期
   const [year, setYear] = useState("115");
   const [term, setTerm] = useState("2");
+  const invalidate = useInvalidate();
 
-  /** 修改學期（狀態或目前學期），成功後顯示 msg 並重新讀取 */
-  async function patch(id: string, body: object, msg: string) {
-    try {
-      await api(`/api/admin/semesters/${id}`, { method: "PATCH", json: body });
+  /** 修改學期（狀態或目前學期），成功後顯示 msg */
+  const patch = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: object; msg: string }) =>
+      api(`/api/admin/semesters/${id}`, { method: "PATCH", json: body }),
+    onSuccess: (_, { msg }) => {
       toast.success(msg);
-      reload();
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  }
+      // 學期狀態與「目前學期」決定能否加退選、登分，以及各頁預設顯示的學期，影響範圍廣，全部失效
+      invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   /** 新增學期；學期代碼由後端組成，重複時後端回 409 */
-  async function create() {
-    try {
-      await api("/api/admin/semesters", {
-        method: "POST",
-        json: { acad_year: Number(year), term: Number(term) },
-      });
+  const create = useMutation({
+    mutationFn: () =>
+      api("/api/admin/semesters", { method: "POST", json: { acad_year: Number(year), term: Number(term) } }),
+    onSuccess: () => {
       toast.success("已新增學期");
-      reload();
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  }
+      invalidate("/api/admin/semesters", "/api/semesters");
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   return (
     <>
@@ -65,18 +65,18 @@ export default function SemestersPage() {
           </SelectContent>
         </Select>
         <span className="text-sm text-muted-foreground">學期</span>
-        <Button onClick={create}>
+        <Button onClick={() => create.mutate()} disabled={create.isPending}>
           <Plus />
           新增
         </Button>
       </PageHeader>
       <Card>
         <CardContent className="p-0">
-          {loading && !data ? (
+          {isPending ? (
             <LoadingState />
           ) : error ? (
             <div className="p-4">
-              <ErrorState message={error} />
+              <ErrorState message={error.message} />
             </div>
           ) : (
             <Table>
@@ -100,7 +100,11 @@ export default function SemestersPage() {
                       <Select
                         value={s.status}
                         onValueChange={(v) =>
-                          patch(s.semester_id, { status: v }, `狀態已改為「${SEMESTER_STATUS[v]}」`)
+                          patch.mutate({
+                            id: s.semester_id,
+                            body: { status: v },
+                            msg: `狀態已改為「${SEMESTER_STATUS[v]}」`,
+                          })
                         }
                       >
                         <SelectTrigger size="sm" className="w-28">
@@ -122,7 +126,10 @@ export default function SemestersPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => patch(s.semester_id, { is_current: true }, "已切換目前學期")}
+                          disabled={patch.isPending}
+                          onClick={() =>
+                            patch.mutate({ id: s.semester_id, body: { is_current: true }, msg: "已切換目前學期" })
+                          }
                         >
                           設為目前
                         </Button>

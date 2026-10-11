@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
@@ -17,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { api, useApi } from "@/lib/api";
+import { api, SECTION_VIEWS, useApiQuery, useInvalidate } from "@/lib/api";
 import { compactSchedule, semesterLabel } from "@/lib/labels";
 import type { Roster } from "@/types";
 import SectionSettings from "./section-settings";
@@ -26,13 +27,27 @@ import SectionSettings from "./section-settings";
 export default function SectionRosterPage() {
   // 動態路由 [id]：網址中的班級 ID
   const { id } = useParams<{ id: string }>();
-  const { data, error, loading, reload } = useApi<Roster>(`/api/teacher/sections/${id}/roster`);
+  const rosterPath = `/api/teacher/sections/${id}/roster`;
+  const { data, error, isPending } = useApiQuery<Roster>(rosterPath);
   // 只記錄使用者修改過的欄位；未修改者顯示伺服器上的值
   const [edits, setEdits] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
+  const invalidate = useInvalidate();
 
-  if (loading && !data) return <LoadingState />;
-  if (error || !data) return <ErrorState message={error ?? "無法載入資料"} />;
+  const saveMutation = useMutation({
+    mutationFn: (grades: { student_id: string; score: string | null }[]) =>
+      api<{ updated: number }>(`/api/teacher/sections/${id}/grades`, { method: "PUT", json: { grades } }),
+    onSuccess: async (res) => {
+      toast.success(`已更新 ${res.updated} 筆成績`);
+      // 先等名單重新讀取完成，再清空修改紀錄，畫面才不會短暫顯示修改前的成績。
+      // 歷年開課的平均成績與學生成績單也一併失效
+      await invalidate(rosterPath, ...SECTION_VIEWS);
+      setEdits({});
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  if (isPending) return <LoadingState />;
+  if (error || !data) return <ErrorState message={error?.message ?? "無法載入資料"} />;
 
   const { section, students, gradable } = data;
   // 班級設定只在開課期間（與後端 section_service 的 OPENABLE 一致）且班級未停開時顯示
@@ -44,33 +59,19 @@ export default function SectionRosterPage() {
   const dirty = students.filter((s) => (s.score ?? "") !== scores[s.student_id]);
 
   /** 送出有變動的成績；先在前端擋掉明顯錯誤的輸入，後端仍會再驗證一次 */
-  async function saveGrades() {
+  function saveGrades() {
     const invalid = dirty.find((s) => {
       const v = scores[s.student_id];
       return v !== "" && (Number.isNaN(Number(v)) || Number(v) < 0 || Number(v) > 100);
     });
     if (invalid) return toast.error(`${invalid.student_name} 的成績須介於 0–100`);
-    setSaving(true);
-    try {
-      const res = await api<{ updated: number }>(`/api/teacher/sections/${id}/grades`, {
-        method: "PUT",
-        json: {
-          grades: dirty.map((s) => ({
-            student_id: s.student_id,
-            // 清空欄位 = 清除成績（送出 null）；數值以字串送出，由後端轉成 Decimal
-            score: scores[s.student_id] === "" ? null : scores[s.student_id],
-          })),
-        },
-      });
-      toast.success(`已更新 ${res.updated} 筆成績`);
-      // 清空修改紀錄，改顯示重新讀取後的伺服器值
-      setEdits({});
-      reload();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setSaving(false);
-    }
+    saveMutation.mutate(
+      dirty.map((s) => ({
+        student_id: s.student_id,
+        // 清空欄位 = 清除成績（送出 null）；數值以字串送出，由後端轉成 Decimal
+        score: scores[s.student_id] === "" ? null : scores[s.student_id],
+      })),
+    );
   }
 
   return (
@@ -88,13 +89,13 @@ export default function SectionRosterPage() {
         <SemesterStatusBadge status={data.semester_status} />
       </PageHeader>
 
-      {editable && <SectionSettings section={section} onChanged={reload} />}
+      {editable && <SectionSettings section={section} rosterPath={rosterPath} />}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">修課名單（{students.length} 人）</CardTitle>
           {gradable ? (
-            <Button size="sm" onClick={saveGrades} disabled={saving || dirty.length === 0}>
+            <Button size="sm" onClick={saveGrades} disabled={saveMutation.isPending || dirty.length === 0}>
               <Save />
               儲存成績{dirty.length ? `（${dirty.length}）` : ""}
             </Button>

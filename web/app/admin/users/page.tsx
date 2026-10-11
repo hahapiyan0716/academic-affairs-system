@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { EmptyState, ErrorState, LoadingState, PageHeader } from "@/components/common";
@@ -9,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { api, useApi } from "@/lib/api";
+import { api, useApiQuery, useInvalidate } from "@/lib/api";
 import { ROLE_LABEL, STUDENT_STATUS } from "@/lib/labels";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import type { AdminUser, Role } from "@/types";
@@ -21,33 +22,33 @@ export default function UsersPage() {
   const [q, setQ] = useState("");
   // 關鍵字停止輸入後才套用；身分是下拉選單，切換時立即生效
   const keyword = useDebouncedValue(q.trim());
-  // 篩選條件直接組成查詢字串；條件改變 → path 改變 → useApi 自動重新請求
-  const params = new URLSearchParams();
-  if (role) params.set("role", role);
-  if (keyword) params.set("q", keyword);
-  const { data, error, loading, reload } = useApi<AdminUser[]>(`/api/admin/users?${params}`);
+  // 篩選條件改變 → query key 改變 → 自動重新請求
+  const { data, error, isPending } = useApiQuery<AdminUser[]>("/api/admin/users", { role, q: keyword });
+  const invalidate = useInvalidate();
 
   /** 啟用／停用登入（後端禁止停用自己） */
-  async function toggleActive(u: AdminUser) {
-    try {
-      await api(`/api/admin/users/${u.user_id}`, { method: "PATCH", json: { is_active: !u.is_active } });
+  const toggleActive = useMutation({
+    mutationFn: (u: AdminUser) =>
+      api(`/api/admin/users/${u.user_id}`, { method: "PATCH", json: { is_active: !u.is_active } }),
+    onSuccess: (_, u) => {
       toast.success(`${u.username} 已${u.is_active ? "停用" : "啟用"}`);
-      reload();
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  }
+      // 教師權限頁也顯示帳號是否停用
+      invalidate("/api/admin/users", "/api/admin/teachers");
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   /** 變更學籍（休學、退學的學生不可選課） */
-  async function changeStudentStatus(studentId: string, status: string) {
-    try {
-      await api(`/api/admin/users/students/${studentId}/status`, { method: "PATCH", json: { status } });
+  const changeStudentStatus = useMutation({
+    mutationFn: ({ studentId, status }: { studentId: string; status: string }) =>
+      api(`/api/admin/users/students/${studentId}/status`, { method: "PATCH", json: { status } }),
+    onSuccess: (_, { status }) => {
       toast.success(`學籍已更新為「${STUDENT_STATUS[status]}」`);
-      reload();
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  }
+      // 總覽的「在學學生數」也會改變
+      invalidate("/api/admin/users", "/api/admin/stats");
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   return (
     <>
@@ -65,16 +66,16 @@ export default function UsersPage() {
             <SelectItem value="Student">學生</SelectItem>
           </SelectContent>
         </Select>
-        <CreateUserDialog onCreated={reload} />
+        <CreateUserDialog />
       </PageHeader>
 
       <Card>
         <CardContent className="p-0">
-          {loading && !data ? (
+          {isPending ? (
             <LoadingState />
           ) : error ? (
             <div className="p-4">
-              <ErrorState message={error} />
+              <ErrorState message={error.message} />
             </div>
           ) : !data?.length ? (
             <EmptyState message="沒有符合條件的帳號" />
@@ -102,7 +103,9 @@ export default function UsersPage() {
                       {u.student ? (
                         <Select
                           value={u.student.status}
-                          onValueChange={(v) => changeStudentStatus(u.student!.student_id, v)}
+                          onValueChange={(v) =>
+                            changeStudentStatus.mutate({ studentId: u.student!.student_id, status: v })
+                          }
                         >
                           <SelectTrigger size="sm" className="w-24">
                             <SelectValue />
@@ -123,7 +126,11 @@ export default function UsersPage() {
                       {u.last_login_at ? new Date(u.last_login_at).toLocaleString("zh-TW") : "從未登入"}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Switch checked={u.is_active} onCheckedChange={() => toggleActive(u)} />
+                      <Switch
+                        checked={u.is_active}
+                        disabled={toggleActive.isPending}
+                        onCheckedChange={() => toggleActive.mutate(u)}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}

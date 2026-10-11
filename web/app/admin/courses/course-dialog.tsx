@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { api } from "@/lib/api";
+import { api, SECTION_VIEWS, useInvalidate } from "@/lib/api";
 import type { AdminCourse } from "@/types";
 
 // 表單狀態一律存字串（與 <input> 的值一致），送出時才轉成 API 需要的型別
@@ -44,9 +45,25 @@ export default function CourseDialog({
       : EMPTY,
   );
 
-  async function submit(e: React.FormEvent) {
+  const invalidate = useInvalidate();
+  const save = useMutation({
+    mutationFn: (body: object) =>
+      // 課號只在新增時送出；編輯時課號不可修改
+      course
+        ? api(`/api/admin/courses/${course.course_no}`, { method: "PATCH", json: body })
+        : api("/api/admin/courses", { method: "POST", json: { ...body, course_no: form.course_no } }),
+    onSuccess: () => {
+      toast.success("課程已儲存");
+      // 課名、學分、領域會出現在課程選單、領域選單與所有班級列表中
+      invalidate("/api/admin/courses", "/api/courses", "/api/fields", ...SECTION_VIEWS);
+      onSaved();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  function submit(e: React.FormEvent) {
     e.preventDefault();
-    const body = {
+    save.mutate({
       course_name: form.course_name,
       course_type: form.course_type,
       credit: Number(form.credit),
@@ -55,19 +72,7 @@ export default function CourseDialog({
         .split(/[、,，\s]+/)
         .map((s) => s.trim())
         .filter(Boolean),
-    };
-    try {
-      // 課號只在新增時送出；編輯時課號不可修改
-      if (course) {
-        await api(`/api/admin/courses/${course.course_no}`, { method: "PATCH", json: body });
-      } else {
-        await api("/api/admin/courses", { method: "POST", json: { ...body, course_no: form.course_no } });
-      }
-      toast.success("課程已儲存");
-      onSaved();
-    } catch (err) {
-      toast.error((err as Error).message);
-    }
+    });
   }
 
   return (
@@ -137,7 +142,9 @@ export default function CourseDialog({
             />
           </div>
           <DialogFooter>
-            <Button type="submit">儲存</Button>
+            <Button type="submit" disabled={save.isPending}>
+              儲存
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { EmptyState, ErrorState, LoadingState, PageHeader, SemesterSelect } from "@/components/common";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useApi } from "@/lib/api";
+import { useApiQuery } from "@/lib/api";
 import { COURSE_TYPE, compactSchedule } from "@/lib/labels";
 import type { Timetable } from "@/types";
 import TimetableGrid from "./timetable-grid";
@@ -13,9 +13,7 @@ import TimetableGrid from "./timetable-grid";
 export default function TimetablePage() {
   // 空字串 = 未選擇，後端預設回傳目前學期的課表
   const [semester, setSemester] = useState("");
-  const { data, error, loading } = useApi<Timetable>(
-    `/api/me/timetable${semester ? `?semester_id=${semester}` : ""}`,
-  );
+  const { data, error, isPending } = useApiQuery<Timetable>("/api/me/timetable", { semester_id: semester });
 
   return (
     <>
@@ -25,10 +23,10 @@ export default function TimetablePage() {
       >
         <SemesterSelect value={semester} onChange={setSemester} />
       </PageHeader>
-      {loading && !data ? (
+      {isPending ? (
         <LoadingState />
       ) : error ? (
-        <ErrorState message={error} />
+        <ErrorState message={error.message} />
       ) : !data?.sections.length ? (
         <Card>
           <EmptyState message="此學期沒有已選上的課程" />
