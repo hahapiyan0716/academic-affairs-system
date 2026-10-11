@@ -529,6 +529,9 @@ class ScoreChangeLog(Base):
 # View（唯讀）：由 migrations/versions/ 以 CREATE VIEW 建立（目前的定義在 0002_field_names.py）
 # info={"is_view": True} 讓 Alembic autogenerate 略過它們（見 migrations/env.py）
 # View 是一種特殊的資料表，它不儲存實際的資料，而是根據其他資料表的內容動態產生。
+# 資料庫只保存 View 的 SELECT 查詢定義；查詢 View 時，會依底層資料表目前的內容產生結果。
+# 因此底層資料異動後，不必另外同步 View，就能在下次查詢取得最新結果。
+# 下方 ORM 類別只用來查詢 View；新增、修改或刪除資料時，應操作 View 所依賴的原始資料表。
 # ---------------------------------------------------------------------
 
 
