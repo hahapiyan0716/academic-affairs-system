@@ -1,10 +1,10 @@
 """
-SQLAlchemy 2.0 ORM(Objet-Relational Mapping) 模型 —— 資料庫結構的唯一來源(Single Source of Truth)。
+SQLAlchemy 2.0 ORM(Object-Relational Mapping) 模型 —— 資料庫結構的唯一來源(Single Source of Truth)。
 
 修改資料表的流程：
   1. 修改本檔
   2. alembic revision --autogenerate -m "說明"   產生 migrations/versions/*.py
-  3. 檢查產生的 migration(autogenerate 不會偵測 CHECK 約束與 View 的變更，需手動補上）
+  3. 檢查產生的 migration（autogenerate 不會偵測 CHECK 約束與 View 的變更，需手動補上）
   4. alembic upgrade head                         套用到資料庫
 
 命名慣例：資料表 PascalCase、欄位 snake_case，約束與索引名稱沿用最初由 Prisma 建立時的命名
@@ -48,18 +48,19 @@ class Base(DeclarativeBase):    # DeclarativeBase 是一個基底類別，所有
 # 所有資料表統一使用 utf8mb4_unicode_ci（MySQL 8 的預設 collation 是 utf8mb4_0900_ai_ci）
 TABLE_OPTIONS: dict[str, Any] = {"mysql_charset": "utf8mb4", "mysql_collate": "utf8mb4_unicode_ci"}
 
+
 # *items：可變長度的參數列表，允許傳入任意數量的索引或約束
 # tuple[Any, ...]：表示回傳值是一個包含任意型別的元組，元組的長度不固定
 def table_args(*items: Any) -> tuple[Any, ...]:
     """組出 __table_args__：約束與索引在前，最後附上共用的資料表選項（SQLAlchemy 規定 dict 必須放最後）"""
     return (*items, TABLE_OPTIONS)
 
+
 # fk()：簡化 ForeignKey 的建立。ON UPDATE 一律 CASCADE（主鍵值被修改時，外鍵跟著更新）；
 # ON DELETE 預設 RESTRICT（仍有子資料參照時拒絕刪除），需要連帶刪除時才傳 ondelete="CASCADE"
 def fk(target: str, name: str, *, ondelete: str = "RESTRICT") -> ForeignKey:
     """外鍵一律 ON UPDATE CASCADE；ON DELETE 依關係決定"""
     return ForeignKey(target, name=name, ondelete=ondelete, onupdate="CASCADE")
-
 
 
 # server_default 用的 SQL 片段：預設值寫進 DDL(Data Definition Language)，由資料庫產生，而不是由 Python 在 INSERT 時帶入
@@ -132,7 +133,7 @@ class EnrollmentStatus(StrEnum):
 ACTIVE_ENROLLMENT = (EnrollmentStatus.Selected, EnrollmentStatus.Manual)
 
 
-# cls = type[StrEnum]：表示 cls 是一個 StrEnum 的子類別
+# cls: type[StrEnum]：表示 cls 是 StrEnum 的子類別本身（傳入的是類別，例如 Role，而不是 Role.Admin 這種成員）
 def _enum(cls: type[StrEnum]) -> Enum:
     """把 Python 列舉對應成資料庫欄位型別；資料庫中存的是列舉的值（value）而非名稱"""
     # native_enum=True 對應 MySQL 的 ENUM 型別
@@ -151,7 +152,7 @@ class UserAccount(Base):
     """系統登入帳號；Teacher / Student 透過 user_id 一對一連結，Admin 無對應的個人資料表"""
 
     __tablename__ = "UserAccount"
-    __table_args__ = table_args(UniqueConstraint("username", name="UserAccount_username_key"))  # name="UserAccount_username_key" 是唯一索引的名稱
+    __table_args__ = table_args(UniqueConstraint("username", name="UserAccount_username_key"))  # name：唯一約束的名稱（MySQL 以同名的唯一索引實作）
 
     # Mapped[int]：表示 user_id 是一個整數型別的欄位，並且會被映射到資料庫中的對應欄位
     # mapped_column(Integer, primary_key=True, autoincrement=True)：表示 user_id 是一個整數型別的欄位，並且是主鍵(primary key)，自動遞增(autoincrement)
@@ -166,9 +167,13 @@ class UserAccount(Base):
     # 修改或重設密碼時加 1，讓所有裝置上既有的登入立即失效
     token_version: Mapped[int] = mapped_column(Integer, server_default=text("0"))
 
-    # relationship()：ORM 層的關聯（資料庫中不會產生此欄位），依 Teacher.user_id／Student.user_id 的 FK 自動推導 JOIN 條件。
-    # 型別為單一物件（非 list），搭配對方 user_id 的 UNIQUE 約束，構成一對一；沒有對應資料時為 None（例如 Admin）。
-    # back_populates="user"：對應 Teacher.user／Student.user，形成雙向關聯，一邊修改時另一邊會同步更新。
+    # relationship()：手上有 account 時，用 account.teacher／account.student 直接取得對應物件，不必自己寫查詢。
+    #   資料庫中沒有這兩個欄位，SQLAlchemy 依對方的 FK（Teacher.user_id／Student.user_id）自動推導 JOIN 條件。
+    #   只是拿一個值篩選資料（WHERE）時用不到 relationship，直接比對欄位即可。
+    # 用途：登入時取姓名與 teacher_id／student_id 寫進 JWT；管理員帳號列表顯示對應的教師／學生資料。
+    # 一對一：型別是單一物件（不是 list），對方的 user_id 設有 UNIQUE 確保不重複；Admin 沒有對應資料，值為 None。
+    # back_populates="user"：與 Teacher.user／Student.user 互相連動，設定其中一邊，另一邊自動對應（不必等 commit）。
+    # "Teacher | None" 加引號：Teacher 定義在下方，先用字串表示型別。
     teacher: Mapped["Teacher | None"] = relationship(back_populates="user")
     student: Mapped["Student | None"] = relationship(back_populates="user")
 
@@ -178,7 +183,7 @@ class Department(Base):
 
     __tablename__ = "Department"
     __table_args__ = table_args(UniqueConstraint("dept_name", name="Department_dept_name_key"))
-    # name="Department_dept_name_key" 是唯一索引的名稱
+    # name="Department_dept_name_key"：唯一約束的名稱（MySQL 以同名的唯一索引實作）
 
     dept_id: Mapped[str] = mapped_column(CHAR(4), primary_key=True)
     dept_name: Mapped[str] = mapped_column(VARCHAR(50))
@@ -196,7 +201,8 @@ class Teacher(Base):
     dept_id: Mapped[str | None] = mapped_column(
         CHAR(4), fk("Department.dept_id", "Teacher_dept_id_fkey", ondelete="SET NULL")
     )
-    # 開課權限：由管理員指派／收回，刻意不放進 JWT，每次開課請求都查資料庫，這樣每次開課都會查一次資料庫確認是不是真的有開課權限，避免 JWT 過期前被收回仍可開課的問題
+    # 開課權限：由管理員指派／收回。刻意不放進 JWT，每次開課請求都查資料庫確認，
+    # 避免權限被收回後，在舊 JWT 到期前（JWT_EXPIRES_IN_HOURS，預設 8 小時）仍能開課
     can_open_section: Mapped[bool] = mapped_column(Boolean, server_default=FALSE)
     user_id: Mapped[int | None] = mapped_column(
         Integer, fk("UserAccount.user_id", "Teacher_user_id_fkey", ondelete="SET NULL")
@@ -204,7 +210,7 @@ class Teacher(Base):
 
     user: Mapped[UserAccount | None] = relationship(back_populates="teacher")
     # Mapped[list["TeacherPermissionLog"]]：表示 permission_logs 是一個列表，裡面包含多個 TeacherPermissionLog 物件
-    # relationship(back_populates="teacher")：表示 permission_logs 與 TeacherPermissionLog.teacher 之間是雙向關聯，當你修改其中一方時，另一方也會自動更新
+    # relationship(back_populates="teacher")：表示 permission_logs 與 TeacherPermissionLog.teacher 之間是雙向關聯，在 Python 端設定其中一方時，另一方在記憶體中立即同步，不必等 commit
     permission_logs: Mapped[list["TeacherPermissionLog"]] = relationship(
         back_populates="teacher", order_by=lambda: TeacherPermissionLog.changed_at.desc()
     )
@@ -223,6 +229,8 @@ class TeacherPermissionLog(Base):
         CHAR(6), fk("Teacher.teacher_id", "TeacherPermissionLog_teacher_id_fkey")
     )
     granted: Mapped[bool] = mapped_column(Boolean)
+    # 執行這次權限變更的管理員 user_id（資料庫中實際存在的欄位）；寫入時直接填 JWT 的 sub，不必先查出帳號物件。
+    # 未傳 ondelete，預設 RESTRICT：有稽核紀錄的帳號無法刪除，確保事後能追查操作者；不再使用的帳號應改為停用（is_active）。
     changed_by: Mapped[int] = mapped_column(
         Integer, fk("UserAccount.user_id", "TeacherPermissionLog_changed_by_fkey")
     )
@@ -230,6 +238,10 @@ class TeacherPermissionLog(Base):
 
     # relationship()：ORM 層的關聯（資料庫中不會產生此欄位），依 TeacherPermissionLog.teacher_id 的 FK 自動推導 JOIN 條件。
     teacher: Mapped[Teacher] = relationship(back_populates="permission_logs")
+    # admin：依 changed_by 的 FK 自動推導 JOIN 條件（TeacherPermissionLog.changed_by = UserAccount.user_id），
+    # 讀取時以 log.admin.username 取得操作者帳號名稱（回應模型為 schemas/teacher_schema.py 的 AdminRefOut）。
+    # relationship 的名稱(admin)不必與 FK 欄位(changed_by)相同，SQLAlchemy 依 FK 配對而非名稱。
+    # 單向關聯（沒有 back_populates）：UserAccount 不需要「列出某管理員的所有操作」，因此不在對方加對應屬性。
     admin: Mapped[UserAccount] = relationship()
 
 
@@ -304,6 +316,8 @@ class Course(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=TRUE)
 
     department: Mapped[Department | None] = relationship()
+    # course.fields：有一門課，要知道它屬於哪些領域；課程列表顯示領域、編輯課程時整批替換領域都經由它。
+    # 只建立這個方向：反方向（cf.course，有一筆 CurriculumField 要拿回課程）程式中沒有需要，說明見 CurriculumField。
     # delete-orphan：從 fields 清單移除的項目，flush 時會從資料庫刪除
     fields: Mapped[list["CurriculumField"]] = relationship(
         cascade="all, delete-orphan", order_by="CurriculumField.field_name"
@@ -320,6 +334,9 @@ class CurriculumField(Base):
         CHAR(5), fk("Course.course_no", "CurriculumField_course_no_fkey", ondelete="CASCADE"), primary_key=True
     )
     field_name: Mapped[str] = mapped_column(VARCHAR(50), primary_key=True)
+
+    # 不建立反向 relationship（cf.course）：程式只會從 Course 讀取領域（Course.fields），不會從單筆 CurriculumField 回頭找課程。
+    # 依領域篩選屬於查詢條件，直接以欄位比對即可（見 section_repository._has_field 的 EXISTS 子查詢），不需要 relationship。
 
 
 # ---------------------------------------------------------------------
@@ -350,11 +367,13 @@ class Section(Base):
 
     __tablename__ = "Section"
     __table_args__ = table_args(
+        # 同一門課在同一學期的班別不可重複（例如不能有兩個 01 班）
         UniqueConstraint(
             "course_no", "semester_id", "section_code", name="Section_course_no_semester_id_section_code_key"
         ),
         # 供 SectionSchedule 的複合外鍵參照，確保時段的 semester_id 與班級一致
         UniqueConstraint("section_id", "semester_id", name="Section_section_id_semester_id_key"),
+        # 加速「某學期＋某狀態」的班級查詢（如選課頁列出開課中的班級）；也作為 semester_id 外鍵所需的索引
         Index("Section_semester_id_status_idx", "semester_id", "status"),
         CheckConstraint("capacity BETWEEN 1 AND 500", name="chk_section_capacity"),
     )
