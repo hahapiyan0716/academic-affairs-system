@@ -390,8 +390,16 @@ class Section(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=NOW)
 
+    # relationship()：用 section.semester 取代自己寫 db.get(Semester, section.semester_id)，省的是程式碼，不是查詢次數。
+    #   預設為 lazy loading：存取 section.semester 時才另發一句 SELECT 查 Semester 表。
+    #   同一個 Session 內，同一筆資料只會查一次、只有一個物件（Identity Map）：
+    #   兩個班級都屬於 1151 學期時，a.semester is b.semester，第二次存取不再查詢。
+    #   這是 Session 的功能，與有沒有 relationship 無關。
+    #   一次處理多個班級時，改用 selectinload 預先載入，避免每個班級各查一次（N+1 問題）。
     course: Mapped[Course] = relationship()
     semester: Mapped[Semester] = relationship()
+    # 一個班級可以有多位教師
+    # cascade="all, delete-orphan" 表示當 Section 被刪除時，其關聯的 SectionTeacher 紀錄也會被刪除。
     teachers: Mapped[list["SectionTeacher"]] = relationship(
         back_populates="section", cascade="all, delete-orphan"
     )
