@@ -2,8 +2,6 @@
 
 這份筆記說明本專案中「和資料庫有關的套件」各自在做什麼，資料庫是怎麼從零被建出來的，`api/app/models.py` 是怎麼寫、怎麼來的，以及和 v1 使用的 Prisma 差在哪裡。例子都取自本專案。
 
-> 名詞提醒：SQLAlchemy 的拼法是 **SQL + Alchemy**（煉金術），不是「SQLACL」。
-
 ---
 
 ## 0. 一張圖看懂：誰負責什麼
@@ -21,14 +19,14 @@ flowchart LR
     PY -->|"MySQL 通訊協定<br/>（密碼交換用 cryptography）"| DB[(MySQL 8<br/>academic_db)]
 ```
 
-| 套件／元件 | 一句話說明 | 在本專案的位置 |
-| --- | --- | --- |
-| **MySQL 8** | 真正存資料、執行 SQL、強制約束的資料庫伺服器 | 本機安裝的服務；資料庫名稱 `academic_db` |
-| **PyMySQL** | 驅動程式（driver）：負責「連上 MySQL、把 SQL 送過去、把結果拿回來」 | `requirements.txt`；`DATABASE_URL` 中的 `+pymysql` |
-| **cryptography** | PyMySQL 的相依套件：MySQL 8 預設的登入驗證方式 `caching_sha2_password` 需要它做加密 | `requirements.txt` |
-| **SQLAlchemy** | 把 Python 物件與 SQL 互相轉換的工具組（ORM + SQL 產生器 + 連線池） | `app/models.py`、`app/db.py`、`app/repositories/` |
-| **Alembic** | 資料庫結構的版本控制：記錄「資料表怎麼一步一步變成現在這樣」並負責套用 | `alembic.ini`、`migrations/` |
-| **pydantic-settings** | 從 `.env` 讀出 `DATABASE_URL` 並驗證格式 | `app/config.py` |
+| 套件／元件                  | 一句話說明                                                                           | 在本專案的位置                                           |
+| --------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| **MySQL 8**           | 真正存資料、執行 SQL、強制約束的資料庫伺服器                                         | 本機安裝的服務；資料庫名稱`academic_db`                |
+| **PyMySQL**           | 驅動程式（driver）：負責「連上 MySQL、把 SQL 送過去、把結果拿回來」                  | `requirements.txt`；`DATABASE_URL` 中的 `+pymysql` |
+| **cryptography**      | PyMySQL 的相依套件：MySQL 8 預設的登入驗證方式`caching_sha2_password` 需要它做加密 | `requirements.txt`                                     |
+| **SQLAlchemy**        | 把 Python 物件與 SQL 互相轉換的工具組（ORM + SQL 產生器 + 連線池）                   | `app/models.py`、`app/db.py`、`app/repositories/`  |
+| **Alembic**           | 資料庫結構的版本控制：記錄「資料表怎麼一步一步變成現在這樣」並負責套用               | `alembic.ini`、`migrations/`                         |
+| **pydantic-settings** | 從`.env` 讀出 `DATABASE_URL` 並驗證格式                                          | `app/config.py`                                        |
 
 最重要的觀念：
 
@@ -119,11 +117,11 @@ INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
 
 ## 2. MySQL、PyMySQL、cryptography：最底層的連線
 
-| 層 | 職責 | 不知道的事 |
-| --- | --- | --- |
-| MySQL | 解析 SQL、存資料、檢查約束（UNIQUE、FK、CHECK）、處理鎖 | 不知道 Python 物件是什麼 |
-| PyMySQL | 依 Python 的 **DB-API 2.0** 標準介面（`connect()`、`cursor.execute()`、`fetchall()`）和 MySQL 溝通 | 不知道資料表長什麼樣子，只負責傳送 SQL 字串與參數 |
-| cryptography | 提供 RSA／SHA-256 等加密運算 | 只在登入資料庫的驗證交換時用到 |
+| 層           | 職責                                                                                                          | 不知道的事                                        |
+| ------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| MySQL        | 解析 SQL、存資料、檢查約束（UNIQUE、FK、CHECK）、處理鎖                                                       | 不知道 Python 物件是什麼                          |
+| PyMySQL      | 依 Python 的**DB-API 2.0** 標準介面（`connect()`、`cursor.execute()`、`fetchall()`）和 MySQL 溝通 | 不知道資料表長什麼樣子，只負責傳送 SQL 字串與參數 |
+| cryptography | 提供 RSA／SHA-256 等加密運算                                                                                  | 只在登入資料庫的驗證交換時用到                    |
 
 為什麼需要 cryptography：MySQL 8 的預設驗證外掛是 `caching_sha2_password`。在沒有 TLS 的連線上（本機開發就是這樣），伺服器重啟後的第一次登入要用 RSA 公鑰加密密碼，PyMySQL 把這段運算交給 cryptography。少了它，連線會在驗證階段失敗。
 
@@ -135,10 +133,10 @@ INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
 
 ### 3.1 兩層架構：Core 與 ORM
 
-| 層 | 操作的對象 | 本專案的例子 |
-| --- | --- | --- |
+| 層             | 操作的對象                                    | 本專案的例子                                                                                                       |
+| -------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | **Core** | 資料表、欄位、SQL 運算式；`Engine` 與連線池 | `create_engine(...)`、`text("SELECT @@lower_case_table_names")`、`select(func.count()).select_from(Student)` |
-| **ORM** | Python 類別與物件（一個物件 = 一列資料） | `class Section(Base)`、`db.get(Student, "S001")`、`db.add(enrollment)`、`db.commit()` |
+| **ORM**  | Python 類別與物件（一個物件 = 一列資料）      | `class Section(Base)`、`db.get(Student, "S001")`、`db.add(enrollment)`、`db.commit()`                      |
 
 ORM 建在 Core 之上：你定義 `class Section(Base)` 時，SQLAlchemy 在背後同時建立了一個 Core 的 `Table("Section", ...)` 物件。
 
@@ -207,29 +205,29 @@ CREATE INDEX `Section_semester_id_status_idx` ON `Section` (semester_id, status)
 
 逐項對照：
 
-| models.py 的寫法 | 產生的 SQL | 說明 |
-| --- | --- | --- |
-| `__tablename__ = "Section"` | `CREATE TABLE \`Section\`` | 資料表名稱；本專案一律 PascalCase |
-| `Mapped[int]`、`Mapped[str]` | `NOT NULL` | 型別標註**沒有** `None` → 不可為 NULL |
-| `Mapped[str \| None]` | （可為 NULL） | `created_by` 允許 NULL（歷史資料沒有建立者） |
-| `mapped_column(CHAR(5))` | `CHAR(5)` | 括號裡寫的是**資料庫型別**；`Mapped[...]` 是**Python 型別** |
-| `primary_key=True, autoincrement=True` | `PRIMARY KEY`、`AUTO_INCREMENT` | |
-| `server_default="01"` | `DEFAULT '01'` | 預設值寫進 DDL，由資料庫產生（見下方說明） |
-| `server_default=NOW` | `DEFAULT CURRENT_TIMESTAMP` | `NOW = func.current_timestamp()` |
-| `_enum(SectionStatus)` | `ENUM('Open','Cancelled')` | Python 的 `StrEnum` 對應 MySQL 的 ENUM |
-| `fk("Course.course_no", "Section_course_no_fkey")` | `CONSTRAINT ... FOREIGN KEY ... ON DELETE RESTRICT ON UPDATE CASCADE` | `fk()` 是本專案的輔助函式（§3.4） |
-| `UniqueConstraint(...)` | `CONSTRAINT ... UNIQUE (...)` | 名稱明確寫出 |
-| `Index(...)` | `CREATE INDEX ...` | |
-| `CheckConstraint(...)` | `CONSTRAINT ... CHECK (...)` | MySQL 8.0.16 起才真正強制執行 |
-| `relationship(...)` | **（沒有任何 SQL）** | 只存在於 Python 端，見下方說明 |
-| `table_args(...)` 最後附上的 `TABLE_OPTIONS` | `CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci` | |
+| models.py 的寫法                                     | 產生的 SQL                                                              | 說明                                                                      |
+| ---------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `__tablename__ = "Section"`                        | `CREATE TABLE \`Section\``                                            | 資料表名稱；本專案一律 PascalCase                                         |
+| `Mapped[int]`、`Mapped[str]`                     | `NOT NULL`                                                            | 型別標註**沒有** `None` → 不可為 NULL                            |
+| `Mapped[str \| None]`                               | （可為 NULL）                                                           | `created_by` 允許 NULL（歷史資料沒有建立者）                            |
+| `mapped_column(CHAR(5))`                           | `CHAR(5)`                                                             | 括號裡寫的是**資料庫型別**；`Mapped[...]` 是**Python 型別** |
+| `primary_key=True, autoincrement=True`             | `PRIMARY KEY`、`AUTO_INCREMENT`                                     |                                                                           |
+| `server_default="01"`                              | `DEFAULT '01'`                                                        | 預設值寫進 DDL，由資料庫產生（見下方說明）                                |
+| `server_default=NOW`                               | `DEFAULT CURRENT_TIMESTAMP`                                           | `NOW = func.current_timestamp()`                                        |
+| `_enum(SectionStatus)`                             | `ENUM('Open','Cancelled')`                                            | Python 的`StrEnum` 對應 MySQL 的 ENUM                                   |
+| `fk("Course.course_no", "Section_course_no_fkey")` | `CONSTRAINT ... FOREIGN KEY ... ON DELETE RESTRICT ON UPDATE CASCADE` | `fk()` 是本專案的輔助函式（§3.4）                                      |
+| `UniqueConstraint(...)`                            | `CONSTRAINT ... UNIQUE (...)`                                         | 名稱明確寫出                                                              |
+| `Index(...)`                                       | `CREATE INDEX ...`                                                    |                                                                           |
+| `CheckConstraint(...)`                             | `CONSTRAINT ... CHECK (...)`                                          | MySQL 8.0.16 起才真正強制執行                                             |
+| `relationship(...)`                                | **（沒有任何 SQL）**                                              | 只存在於 Python 端，見下方說明                                            |
+| `table_args(...)` 最後附上的 `TABLE_OPTIONS`     | `CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci`                          |                                                                           |
 
 #### `server_default` 與 `default` 的差別
 
-| 參數 | 誰產生預設值 | 會不會寫進 DDL | 本專案 |
-| --- | --- | --- | --- |
-| `server_default=...` | MySQL | 會（`DEFAULT ...`） | 全部使用這個 |
-| `default=...` | SQLAlchemy 在 INSERT 時帶入 | 不會 | 沒有使用 |
+| 參數                   | 誰產生預設值                | 會不會寫進 DDL        | 本專案       |
+| ---------------------- | --------------------------- | --------------------- | ------------ |
+| `server_default=...` | MySQL                       | 會（`DEFAULT ...`） | 全部使用這個 |
+| `default=...`        | SQLAlchemy 在 INSERT 時帶入 | 不會                  | 沒有使用     |
 
 用 `server_default` 的好處：以原始 SQL 寫入資料時（例如 `seed.sql` 的 `INSERT`，ORM 不介入），預設值一樣有效。
 
@@ -301,12 +299,12 @@ SELECT ... FROM `Student` WHERE `Student`.student_id = %(student_id_1)s FOR UPDA
 
 SQLAlchemy 本身有一個 `create_all()`，可以依 models 直接建表。本專案**禁止使用**，原因：
 
-| `create_all()` | Alembic |
-| --- | --- |
-| 只會建立「還不存在」的表；表已存在時，欄位改了也**不會修改** | 可以新增欄位、改型別、加索引…… |
-| 沒有版本紀錄，不知道資料庫目前是哪個版本 | `alembic_version` 記錄目前版本 |
-| 無法還原 | 每個 migration 都有 `downgrade()` |
-| 不會建立 View | migration 中可用 `op.execute()` 建 View |
+| `create_all()`                                                   | Alembic                                  |
+| ------------------------------------------------------------------ | ---------------------------------------- |
+| 只會建立「還不存在」的表；表已存在時，欄位改了也**不會修改** | 可以新增欄位、改型別、加索引……         |
+| 沒有版本紀錄，不知道資料庫目前是哪個版本                           | `alembic_version` 記錄目前版本         |
+| 無法還原                                                           | 每個 migration 都有`downgrade()`       |
+| 不會建立 View                                                      | migration 中可用`op.execute()` 建 View |
 
 `create_all()` 適合寫完即丟的小工具或測試，不適合需要持續改表的專案。
 
@@ -402,41 +400,41 @@ autogenerate **偵測得到**：資料表與欄位的新增／刪除、欄位型
 
 autogenerate **偵測不到**，必須手寫：
 
-| 項目 | 本專案的處理 |
-| --- | --- |
-| CHECK 約束的變更 | 在 migration 中手動寫 `op.drop_constraint(...)`／`op.create_check_constraint(...)` |
-| View | `op.execute("CREATE OR REPLACE VIEW ...")`，例如 `0002_field_names.py` |
-| 欄位改名 | 會被判成「刪除 + 新增」，要手動改成 `op.alter_column(..., new_column_name=...)` |
-| 資料的搬移 | 例如拆欄位時要把舊資料轉過去，用 `op.execute("UPDATE ...")` |
+| 項目             | 本專案的處理                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------- |
+| CHECK 約束的變更 | 在 migration 中手動寫`op.drop_constraint(...)`／`op.create_check_constraint(...)` |
+| View             | `op.execute("CREATE OR REPLACE VIEW ...")`，例如 `0002_field_names.py`            |
+| 欄位改名         | 會被判成「刪除 + 新增」，要手動改成`op.alter_column(..., new_column_name=...)`      |
+| 資料的搬移       | 例如拆欄位時要把舊資料轉過去，用`op.execute("UPDATE ...")`                          |
 
 `0002_field_names.py` 就是完全手寫的 migration：它沒有改任何資料表，只用 `CREATE OR REPLACE VIEW` 替兩個 View 加上 `field_names` 欄位；`downgrade()` 再用一次 `CREATE OR REPLACE VIEW` 換回沒有該欄位的版本。
 
 ### 4.5 常用指令
 
-| 指令 | 作用 |
-| --- | --- |
-| `alembic upgrade head` | 套用所有尚未執行的 migration |
-| `alembic downgrade -1` | 退回上一版（執行目前版本的 `downgrade()`） |
-| `alembic downgrade base` | 退回到完全沒有表（`seed --reset` 會用到，**資料全部消失**） |
-| `alembic current` | 查看資料庫目前的版本 |
-| `alembic history` | 列出整條版本鏈 |
-| `alembic revision --autogenerate -m "說明"` | 比對 models 與資料庫，產生新的 migration |
-| `alembic revision -m "說明"` | 產生空白的 migration（手寫 View 等內容時用） |
-| `alembic upgrade head --sql` | **離線模式**：不連資料庫，只把會執行的 SQL 印出來（`database/schema.generated.sql` 由此產生） |
-| `alembic stamp 0001` | 只把 `alembic_version` 設成指定版本，**不執行任何 DDL**（§5 用到） |
+| 指令                                          | 作用                                                                                                  |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `alembic upgrade head`                      | 套用所有尚未執行的 migration                                                                          |
+| `alembic downgrade -1`                      | 退回上一版（執行目前版本的`downgrade()`）                                                           |
+| `alembic downgrade base`                    | 退回到完全沒有表（`seed --reset` 會用到，**資料全部消失**）                                   |
+| `alembic current`                           | 查看資料庫目前的版本                                                                                  |
+| `alembic history`                           | 列出整條版本鏈                                                                                        |
+| `alembic revision --autogenerate -m "說明"` | 比對 models 與資料庫，產生新的 migration                                                              |
+| `alembic revision -m "說明"`                | 產生空白的 migration（手寫 View 等內容時用）                                                          |
+| `alembic upgrade head --sql`                | **離線模式**：不連資料庫，只把會執行的 SQL 印出來（`database/schema.generated.sql` 由此產生） |
+| `alembic stamp 0001`                        | 只把`alembic_version` 設成指定版本，**不執行任何 DDL**（§5 用到）                            |
 
 ### 4.6 本專案對 `env.py` 做的客製化
 
 `env.py` 由 `alembic init` 產生範本，本專案改了這幾處：
 
-| 設定 | 目的 |
-| --- | --- |
-| 連線字串取自 `get_settings().database_url` | 密碼留在 `.env`，不寫進納入版控的 `alembic.ini` |
-| `target_metadata = Base.metadata` | 告訴 autogenerate：models.py 就是「應有的結構」 |
-| `compare_type=True`、`compare_server_default=True` | 型別與預設值的差異也要比對 |
-| `include_object`（`app/migration_support.py`） | ① 略過 `info={"is_view": True}` 的 View 類別 ② 資料庫中有、models 沒定義的表（如 `alembic_version`）不提議刪除 |
-| `patch_case_insensitive_reflection` | Windows MySQL 的表名存成小寫（`section`），反射結果要換回 `Section`，否則 autogenerate 會以為 15 張表全部不存在 |
-| `poolclass=pool.NullPool` | migration 是一次性指令，不需要連線池 |
+| 設定                                                   | 目的                                                                                                                |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| 連線字串取自`get_settings().database_url`            | 密碼留在`.env`，不寫進納入版控的 `alembic.ini`                                                                  |
+| `target_metadata = Base.metadata`                    | 告訴 autogenerate：models.py 就是「應有的結構」                                                                     |
+| `compare_type=True`、`compare_server_default=True` | 型別與預設值的差異也要比對                                                                                          |
+| `include_object`（`app/migration_support.py`）     | ① 略過`info={"is_view": True}` 的 View 類別 ② 資料庫中有、models 沒定義的表（如 `alembic_version`）不提議刪除 |
+| `patch_case_insensitive_reflection`                  | Windows MySQL 的表名存成小寫（`section`），反射結果要換回 `Section`，否則 autogenerate 會以為 15 張表全部不存在 |
+| `poolclass=pool.NullPool`                            | migration 是一次性指令，不需要連線池                                                                                |
 
 ---
 
@@ -502,40 +500,40 @@ model Section {
 
 可以看到概念幾乎一一對應：
 
-| 概念 | Prisma | SQLAlchemy |
-| --- | --- | --- |
-| 可為 NULL | `String?` | `Mapped[str \| None]` |
-| 資料庫型別 | `@db.Char(5)` | `mapped_column(CHAR(5))` |
-| 預設值 | `@default("01")` | `server_default="01"` |
-| 外鍵 | `@relation(fields: [...], references: [...])` | `ForeignKey(...)`／`ForeignKeyConstraint(...)` |
-| 關聯導覽 | 同一個 `@relation` 欄位 | `relationship()`（和外鍵分開寫） |
-| 複合唯一 | `@@unique([...])` | `UniqueConstraint(...)` |
-| 約束名稱 | 自動產生（`Section_course_no_fkey`），可用 `map:` 指定 | 不指定時由 SQLAlchemy／MySQL 決定；本專案全部明確寫出 |
-| CHECK 約束 | **不支援**，要手寫在 migration SQL | `CheckConstraint(...)`，但 autogenerate 偵測不到變更 |
-| View | schema 中無法定義（只有預覽功能），要手寫 SQL | 同樣手寫在 migration 中 |
+| 概念       | Prisma                                                     | SQLAlchemy                                             |
+| ---------- | ---------------------------------------------------------- | ------------------------------------------------------ |
+| 可為 NULL  | `String?`                                                | `Mapped[str \| None]`                                 |
+| 資料庫型別 | `@db.Char(5)`                                            | `mapped_column(CHAR(5))`                             |
+| 預設值     | `@default("01")`                                         | `server_default="01"`                                |
+| 外鍵       | `@relation(fields: [...], references: [...])`            | `ForeignKey(...)`／`ForeignKeyConstraint(...)`     |
+| 關聯導覽   | 同一個`@relation` 欄位                                   | `relationship()`（和外鍵分開寫）                     |
+| 複合唯一   | `@@unique([...])`                                        | `UniqueConstraint(...)`                              |
+| 約束名稱   | 自動產生（`Section_course_no_fkey`），可用 `map:` 指定 | 不指定時由 SQLAlchemy／MySQL 決定；本專案全部明確寫出  |
+| CHECK 約束 | **不支援**，要手寫在 migration SQL                   | `CheckConstraint(...)`，但 autogenerate 偵測不到變更 |
+| View       | schema 中無法定義（只有預覽功能），要手寫 SQL              | 同樣手寫在 migration 中                                |
 
 ### 6.2 工作流程與機制的差別
 
-| 項目 | Prisma | SQLAlchemy + Alembic |
-| --- | --- | --- |
-| 結構定義語言 | 專用的 Prisma Schema Language（`.prisma`） | 一般的 Python 類別 |
-| 建表／改表 | `prisma migrate dev` | `alembic revision --autogenerate` + `alembic upgrade head` |
-| migration 檔格式 | **純 SQL**（`migration.sql`） | **Python**（`op.add_column(...)`），執行時才翻譯成 SQL |
-| 比對方式 | 用一個暫時的 **shadow database** 重播所有 migration，再與 schema 比對 | 直接**反射**目前的資料庫，與 `Base.metadata` 比對；不需要 shadow DB |
-| 版本紀錄 | `_prisma_migrations` 表：每個跑過的 migration 一列（含 checksum） | `alembic_version` 表：只有一列，記目前版本 |
-| 還原（down migration） | **不提供**，要自己寫 SQL 或另外產生 | 每個 migration 都有 `downgrade()` |
-| 查詢用的程式碼 | `prisma generate` **產生** Prisma Client（有完整型別） | 不產生程式碼，models 類別本身就是查詢用的物件 |
-| 查詢寫法 | `prisma.section.findMany({ where: {...}, include: {...} })` | `select(Section).where(...).join(...)` |
-| 鎖定查詢（`FOR UPDATE`） | Prisma Client 沒有對應 API，要用 `$queryRaw` 寫原始 SQL | `.with_for_update()`（本專案選課交易大量使用） |
-| 交易 | `prisma.$transaction(...)` | `Session` 預設就在交易中，`db.commit()` 結束 |
-| 語言 | TypeScript／JavaScript | Python |
+| 項目                       | Prisma                                                                     | SQLAlchemy + Alembic                                                        |
+| -------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| 結構定義語言               | 專用的 Prisma Schema Language（`.prisma`）                               | 一般的 Python 類別                                                          |
+| 建表／改表                 | `prisma migrate dev`                                                     | `alembic revision --autogenerate` + `alembic upgrade head`              |
+| migration 檔格式           | **純 SQL**（`migration.sql`）                                      | **Python**（`op.add_column(...)`），執行時才翻譯成 SQL              |
+| 比對方式                   | 用一個暫時的**shadow database** 重播所有 migration，再與 schema 比對 | 直接**反射**目前的資料庫，與 `Base.metadata` 比對；不需要 shadow DB |
+| 版本紀錄                   | `_prisma_migrations` 表：每個跑過的 migration 一列（含 checksum）        | `alembic_version` 表：只有一列，記目前版本                                |
+| 還原（down migration）     | **不提供**，要自己寫 SQL 或另外產生                                  | 每個 migration 都有`downgrade()`                                          |
+| 查詢用的程式碼             | `prisma generate` **產生** Prisma Client（有完整型別）             | 不產生程式碼，models 類別本身就是查詢用的物件                               |
+| 查詢寫法                   | `prisma.section.findMany({ where: {...}, include: {...} })`              | `select(Section).where(...).join(...)`                                    |
+| 鎖定查詢（`FOR UPDATE`） | Prisma Client 沒有對應 API，要用`$queryRaw` 寫原始 SQL                   | `.with_for_update()`（本專案選課交易大量使用）                            |
+| 交易                       | `prisma.$transaction(...)`                                               | `Session` 預設就在交易中，`db.commit()` 結束                            |
+| 語言                       | TypeScript／JavaScript                                                     | Python                                                                      |
 
 ### 6.3 利弊
 
-| | Prisma | SQLAlchemy + Alembic |
-| --- | --- | --- |
-| 優點 | schema 簡潔好讀；migration 是 SQL，一看就知道會做什麼；型別產生完整 | 和 Python 後端同一種語言、同一份定義；可細緻控制 SQL（鎖、子查詢、`EXISTS`）；有 downgrade |
-| 缺點 | 只能在 Node.js 生態使用；CHECK、View、鎖定查詢要繞路；沒有 down migration | 寫法較冗長；migration 是 Python，要用 `--sql` 才看得到實際 SQL；autogenerate 的盲點（CHECK、View、改名）要自己記住 |
+|      | Prisma                                                                    | SQLAlchemy + Alembic                                                                                                |
+| ---- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| 優點 | schema 簡潔好讀；migration 是 SQL，一看就知道會做什麼；型別產生完整       | 和 Python 後端同一種語言、同一份定義；可細緻控制 SQL（鎖、子查詢、`EXISTS`）；有 downgrade                        |
+| 缺點 | 只能在 Node.js 生態使用；CHECK、View、鎖定查詢要繞路；沒有 down migration | 寫法較冗長；migration 是 Python，要用`--sql` 才看得到實際 SQL；autogenerate 的盲點（CHECK、View、改名）要自己記住 |
 
 本專案 v2 改用 SQLAlchemy + Alembic 的主要原因不是 Prisma 不好，而是**後端只剩 Python**：留著 Prisma 等於為了建表多維護一套 Node.js 工具，而且又回到兩份定義的問題。
 
@@ -548,13 +546,11 @@ model Section {
    ```python
    token_version: Mapped[int] = mapped_column(Integer, server_default=text("0"))
    ```
-
 2. **產生 migration**：
 
    ```powershell
    conda run -n academic_system --no-capture-output alembic revision --autogenerate -m "UserAccount 新增 token_version"
    ```
-
 3. **檢查產生的檔案**：確認只有 `op.add_column`，沒有多出意料之外的操作（例如誤判要刪除某張表）。補上檔頭說明。
 4. **確認 SQL（可選）**：`alembic upgrade head --sql` 看實際會執行的 DDL。
 5. **套用**：`alembic upgrade head`。
@@ -577,29 +573,29 @@ def downgrade() -> None:
 
 ## 8. 本專案踩過的坑
 
-| 現象 | 原因 | 處理 |
-| --- | --- | --- |
-| autogenerate 說 15 張表全部「缺少」 | Windows MySQL `lower_case_table_names=1`，反射回來的表名是小寫 | `migration_support.patch_case_insensitive_reflection` |
-| `alembic stamp` 顯示成功，`alembic_version` 卻是空的 | 偵測大小寫的查詢讓 SQLAlchemy 2.x autobegin 開了一個交易沒關，Alembic 以為是外部交易而不 commit | 偵測查詢包在自己的 `with connection.begin():` |
-| 所有 alembic 指令都 `UnicodeDecodeError` | Windows 上 Alembic 以 cp950 讀 `alembic.ini`，檔案裡有中文 | `alembic.ini` 維持純 ASCII，說明寫在 `env.py` |
-| migration 出現 `SyntaxError: invalid non-printable character U+FEFF` | 用 PowerShell 5.1 的 `>` 產生檔案，被加上 UTF-8 BOM | 改由 Python 讀寫，或用 Git Bash 重導向 |
-| 更新課程領域時主鍵重複 | 「清空再全部加回」時，SQLAlchemy 在同一次 flush 中先 INSERT 後 DELETE | 只刪除不需要的、只新增新的（`course_service.update_course`） |
+| 現象                                                                  | 原因                                                                                            | 處理                                                           |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| autogenerate 說 15 張表全部「缺少」                                   | Windows MySQL`lower_case_table_names=1`，反射回來的表名是小寫                                 | `migration_support.patch_case_insensitive_reflection`        |
+| `alembic stamp` 顯示成功，`alembic_version` 卻是空的              | 偵測大小寫的查詢讓 SQLAlchemy 2.x autobegin 開了一個交易沒關，Alembic 以為是外部交易而不 commit | 偵測查詢包在自己的`with connection.begin():`                 |
+| 所有 alembic 指令都`UnicodeDecodeError`                             | Windows 上 Alembic 以 cp950 讀`alembic.ini`，檔案裡有中文                                     | `alembic.ini` 維持純 ASCII，說明寫在 `env.py`              |
+| migration 出現`SyntaxError: invalid non-printable character U+FEFF` | 用 PowerShell 5.1 的`>` 產生檔案，被加上 UTF-8 BOM                                            | 改由 Python 讀寫，或用 Git Bash 重導向                         |
+| 更新課程領域時主鍵重複                                                | 「清空再全部加回」時，SQLAlchemy 在同一次 flush 中先 INSERT 後 DELETE                           | 只刪除不需要的、只新增新的（`course_service.update_course`） |
 
 ---
 
 ## 9. 名詞對照
 
-| 名詞 | 說明 |
-| --- | --- |
-| ORM（Object-Relational Mapping） | 讓一個 Python 物件對應資料表的一列，用物件操作代替手寫 SQL |
-| DDL（Data Definition Language） | 定義結構的 SQL：`CREATE TABLE`、`ALTER TABLE`、`CREATE INDEX` |
-| DML（Data Manipulation Language） | 操作資料的 SQL：`SELECT`、`INSERT`、`UPDATE`、`DELETE` |
-| Migration | 一次結構變更的紀錄檔，含「怎麼升級」與「怎麼還原」 |
-| Dialect（方言） | SQLAlchemy 對特定資料庫語法的支援，例如 `mysql`、`postgresql` |
-| Driver（驅動程式） | 實際和資料庫連線的套件，例如 PyMySQL |
-| DB-API 2.0 | Python 規範的資料庫驅動標準介面（PEP 249） |
-| Reflection（反射） | 從現有資料庫讀回結構，變成 SQLAlchemy 的 `Table` 物件 |
-| `MetaData` | 一組 `Table` 定義的集合；`Base.metadata` 收集了所有 models |
-| Session | ORM 的工作單位：追蹤物件的變更，在 flush／commit 時轉成 SQL |
-| flush | 把 Session 中尚未送出的變更送到資料庫（仍在交易中，尚未 commit） |
-| Single Source of Truth | 唯一來源；本專案中資料庫結構的唯一來源是 `models.py` |
+| 名詞                              | 說明                                                                |
+| --------------------------------- | ------------------------------------------------------------------- |
+| ORM（Object-Relational Mapping）  | 讓一個 Python 物件對應資料表的一列，用物件操作代替手寫 SQL          |
+| DDL（Data Definition Language）   | 定義結構的 SQL：`CREATE TABLE`、`ALTER TABLE`、`CREATE INDEX` |
+| DML（Data Manipulation Language） | 操作資料的 SQL：`SELECT`、`INSERT`、`UPDATE`、`DELETE`      |
+| Migration                         | 一次結構變更的紀錄檔，含「怎麼升級」與「怎麼還原」                  |
+| Dialect（方言）                   | SQLAlchemy 對特定資料庫語法的支援，例如`mysql`、`postgresql`    |
+| Driver（驅動程式）                | 實際和資料庫連線的套件，例如 PyMySQL                                |
+| DB-API 2.0                        | Python 規範的資料庫驅動標準介面（PEP 249）                          |
+| Reflection（反射）                | 從現有資料庫讀回結構，變成 SQLAlchemy 的`Table` 物件              |
+| `MetaData`                      | 一組`Table` 定義的集合；`Base.metadata` 收集了所有 models       |
+| Session                           | ORM 的工作單位：追蹤物件的變更，在 flush／commit 時轉成 SQL         |
+| flush                             | 把 Session 中尚未送出的變更送到資料庫（仍在交易中，尚未 commit）    |
+| Single Source of Truth            | 唯一來源；本專案中資料庫結構的唯一來源是`models.py`               |
