@@ -1,14 +1,18 @@
 """
-SQLAlchemy 2.0 ORM 模型 —— 資料庫結構的唯一來源（Single Source of Truth）。
+SQLAlchemy 2.0 ORM(Objet-Relational Mapping) 模型 —— 資料庫結構的唯一來源(Single Source of Truth)。
 
 修改資料表的流程：
   1. 修改本檔
   2. alembic revision --autogenerate -m "說明"   產生 migrations/versions/*.py
-  3. 檢查產生的 migration（autogenerate 不會偵測 CHECK 約束與 View 的變更，需手動補上）
+  3. 檢查產生的 migration(autogenerate 不會偵測 CHECK 約束與 View 的變更，需手動補上）
   4. alembic upgrade head                         套用到資料庫
 
-命名慣例：資料表 PascalCase、欄位 snake_case；約束與索引名稱沿用最初由 Prisma 建立時的命名
-（<表>_<欄位>_key / _idx / _fkey），讓既有資料庫與本檔完全一致。
+命名慣例：資料表 PascalCase、欄位 snake_case，約束與索引名稱沿用最初由 Prisma 建立時的命名
+(<表>_<欄位>_key / _idx / _fkey)，讓既有資料庫與本檔完全一致。
+
+什麼是 ORM？
+ORM 是 Object-Relational Mapping 的縮寫，意指「物件導向程式設計」與「關聯式資料庫」之間的對應關係。
+ORM 讓開發者可以使用程式語言的物件來操作資料庫，而不需要直接撰寫 SQL 語句，因為後面的 SQLAlchemy 會自動處理 SQL 的生成和執行。
 """
 
 from datetime import datetime
@@ -37,34 +41,36 @@ from sqlalchemy.dialects.mysql import TINYINT
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
-class Base(DeclarativeBase):
+class Base(DeclarativeBase):    # DeclarativeBase 是一個基底類別，所有 ORM 模型都要繼承它，才能被 SQLAlchemy 辨識為資料表
     """所有 ORM 模型的基底；Base.metadata 收集全部資料表，供 Alembic 比對"""
 
 
 # 所有資料表統一使用 utf8mb4_unicode_ci（MySQL 8 的預設 collation 是 utf8mb4_0900_ai_ci）
 TABLE_OPTIONS: dict[str, Any] = {"mysql_charset": "utf8mb4", "mysql_collate": "utf8mb4_unicode_ci"}
 
-
+# *items：可變長度的參數列表，允許傳入任意數量的索引或約束
+# tuple[Any, ...]：表示回傳值是一個包含任意型別的元組，元組的長度不固定
 def table_args(*items: Any) -> tuple[Any, ...]:
     """組出 __table_args__：約束與索引在前，最後附上共用的資料表選項（SQLAlchemy 規定 dict 必須放最後）"""
     return (*items, TABLE_OPTIONS)
 
-
+# fk()：簡化 ForeignKey 的建立。ON UPDATE 一律 CASCADE（主鍵值被修改時，外鍵跟著更新）；
+# ON DELETE 預設 RESTRICT（仍有子資料參照時拒絕刪除），需要連帶刪除時才傳 ondelete="CASCADE"
 def fk(target: str, name: str, *, ondelete: str = "RESTRICT") -> ForeignKey:
     """外鍵一律 ON UPDATE CASCADE；ON DELETE 依關係決定"""
     return ForeignKey(target, name=name, ondelete=ondelete, onupdate="CASCADE")
 
 
-# server_default 用的 SQL 片段：預設值寫進 DDL，由資料庫產生，而不是由 Python 在 INSERT 時帶入
+
+# server_default 用的 SQL 片段：預設值寫進 DDL(Data Definition Language)，由資料庫產生，而不是由 Python 在 INSERT 時帶入
 TRUE = text("1")
 FALSE = text("0")
 NOW = func.current_timestamp()
 
 
 # ---------------------------------------------------------------------
-# 列舉
+# 列舉(Enum)型別：帳號角色、學籍狀態、課程類別、學期狀態、班級狀態、修課狀態
 # ---------------------------------------------------------------------
-
 
 class Role(StrEnum):
     """帳號角色：管理員、教師、學生"""
@@ -121,16 +127,21 @@ class EnrollmentStatus(StrEnum):
     Withdrawn = "Withdrawn"
 
 
-# 「實際佔用名額／實際修課」的狀態
+# 「實際佔用名額／實際修課」的狀態，也就是學生已經可以進入教室上課、老師也要負責評分的狀態
+# 例如：學生加選成功（Selected）或人工加選（Manual）才算有效選課，落選（NotSelected）或退選（Withdrawn）都不算
 ACTIVE_ENROLLMENT = (EnrollmentStatus.Selected, EnrollmentStatus.Manual)
 
 
+# cls = type[StrEnum]：表示 cls 是一個 StrEnum 的子類別
 def _enum(cls: type[StrEnum]) -> Enum:
     """把 Python 列舉對應成資料庫欄位型別；資料庫中存的是列舉的值（value）而非名稱"""
-    # native_enum=True 對應 MySQL 的 ENUM 型別；validate_strings 讓錯誤值在 Python 端就被擋下
+    # native_enum=True 對應 MySQL 的 ENUM 型別
+    # validate_strings 讓錯誤值在 Python 端就被擋下
+    # values_callable=lambda e: [m.value for m in e] 讓資料庫欄位的選項對應到列舉的值，而不是名稱
     return Enum(cls, native_enum=True, validate_strings=True, values_callable=lambda e: [m.value for m in e])
 
 
+# 以上都是在定義資料庫模型之前的設定與工具函式，接下來才是實際的資料表模型定義
 # ---------------------------------------------------------------------
 # 帳號與身分
 # ---------------------------------------------------------------------
@@ -140,8 +151,10 @@ class UserAccount(Base):
     """系統登入帳號；Teacher / Student 透過 user_id 一對一連結，Admin 無對應的個人資料表"""
 
     __tablename__ = "UserAccount"
-    __table_args__ = table_args(UniqueConstraint("username", name="UserAccount_username_key"))
+    __table_args__ = table_args(UniqueConstraint("username", name="UserAccount_username_key"))  # name="UserAccount_username_key" 是唯一索引的名稱
 
+    # Mapped[int]：表示 user_id 是一個整數型別的欄位，並且會被映射到資料庫中的對應欄位
+    # mapped_column(Integer, primary_key=True, autoincrement=True)：表示 user_id 是一個整數型別的欄位，並且是主鍵(primary key)，自動遞增(autoincrement)
     user_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(VARCHAR(30))
     password_hash: Mapped[str] = mapped_column(VARCHAR(100))  # bcrypt 雜湊，不存明碼
@@ -153,6 +166,9 @@ class UserAccount(Base):
     # 修改或重設密碼時加 1，讓所有裝置上既有的登入立即失效
     token_version: Mapped[int] = mapped_column(Integer, server_default=text("0"))
 
+    # relationship()：ORM 層的關聯（資料庫中不會產生此欄位），依 Teacher.user_id／Student.user_id 的 FK 自動推導 JOIN 條件。
+    # 型別為單一物件（非 list），搭配對方 user_id 的 UNIQUE 約束，構成一對一；沒有對應資料時為 None（例如 Admin）。
+    # back_populates="user"：對應 Teacher.user／Student.user，形成雙向關聯，一邊修改時另一邊會同步更新。
     teacher: Mapped["Teacher | None"] = relationship(back_populates="user")
     student: Mapped["Student | None"] = relationship(back_populates="user")
 
@@ -162,6 +178,7 @@ class Department(Base):
 
     __tablename__ = "Department"
     __table_args__ = table_args(UniqueConstraint("dept_name", name="Department_dept_name_key"))
+    # name="Department_dept_name_key" 是唯一索引的名稱
 
     dept_id: Mapped[str] = mapped_column(CHAR(4), primary_key=True)
     dept_name: Mapped[str] = mapped_column(VARCHAR(50))
@@ -179,13 +196,15 @@ class Teacher(Base):
     dept_id: Mapped[str | None] = mapped_column(
         CHAR(4), fk("Department.dept_id", "Teacher_dept_id_fkey", ondelete="SET NULL")
     )
-    # 開課權限：由管理員指派／收回；刻意不放進 JWT，每次開課都查資料庫
+    # 開課權限：由管理員指派／收回，刻意不放進 JWT，每次開課請求都查資料庫，這樣每次開課都會查一次資料庫確認是不是真的有開課權限，避免 JWT 過期前被收回仍可開課的問題
     can_open_section: Mapped[bool] = mapped_column(Boolean, server_default=FALSE)
     user_id: Mapped[int | None] = mapped_column(
         Integer, fk("UserAccount.user_id", "Teacher_user_id_fkey", ondelete="SET NULL")
     )
 
     user: Mapped[UserAccount | None] = relationship(back_populates="teacher")
+    # Mapped[list["TeacherPermissionLog"]]：表示 permission_logs 是一個列表，裡面包含多個 TeacherPermissionLog 物件
+    # relationship(back_populates="teacher")：表示 permission_logs 與 TeacherPermissionLog.teacher 之間是雙向關聯，當你修改其中一方時，另一方也會自動更新
     permission_logs: Mapped[list["TeacherPermissionLog"]] = relationship(
         back_populates="teacher", order_by=lambda: TeacherPermissionLog.changed_at.desc()
     )
@@ -209,6 +228,7 @@ class TeacherPermissionLog(Base):
     )
     changed_at: Mapped[datetime] = mapped_column(DateTime, server_default=NOW)
 
+    # relationship()：ORM 層的關聯（資料庫中不會產生此欄位），依 TeacherPermissionLog.teacher_id 的 FK 自動推導 JOIN 條件。
     teacher: Mapped[Teacher] = relationship(back_populates="permission_logs")
     admin: Mapped[UserAccount] = relationship()
 

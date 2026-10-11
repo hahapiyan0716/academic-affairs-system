@@ -19,14 +19,14 @@ flowchart LR
     PY -->|"MySQL 通訊協定<br/>（密碼交換用 cryptography）"| DB[(MySQL 8<br/>academic_db)]
 ```
 
-| 套件／元件                  | 一句話說明                                                                           | 在本專案的位置                                           |
-| --------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------- |
-| **MySQL 8**           | 真正存資料、執行 SQL、強制約束的資料庫伺服器                                         | 本機安裝的服務；資料庫名稱`academic_db`                |
-| **PyMySQL**           | 驅動程式（driver）：負責「連上 MySQL、把 SQL 送過去、把結果拿回來」                  | `requirements.txt`；`DATABASE_URL` 中的 `+pymysql` |
-| **cryptography**      | PyMySQL 的相依套件：MySQL 8 預設的登入驗證方式`caching_sha2_password` 需要它做加密 | `requirements.txt`                                     |
-| **SQLAlchemy**        | 把 Python 物件與 SQL 互相轉換的工具組（ORM + SQL 產生器 + 連線池）                   | `app/models.py`、`app/db.py`、`app/repositories/`  |
-| **Alembic**           | 資料庫結構的版本控制：記錄「資料表怎麼一步一步變成現在這樣」並負責套用               | `alembic.ini`、`migrations/`                         |
-| **pydantic-settings** | 從`.env` 讀出 `DATABASE_URL` 並驗證格式                                          | `app/config.py`                                        |
+| 套件／元件                  | 一句話說明                                                                                                                                                     | 在本專案的位置                                           |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| **MySQL 8**           | 真正存資料、執行 SQL、強制約束的資料庫伺服器                                                                                                                   | 本機安裝的服務；資料庫名稱`academic_db`                |
+| **PyMySQL**           | 驅動程式（driver）：負責「連上 MySQL、把 SQL 送過去、把結果拿回來」                                                                                            | `requirements.txt`；`DATABASE_URL` 中的 `+pymysql` |
+| **cryptography**      | PyMySQL 的相依套件：MySQL 8 預設的登入驗證方式`caching_sha2_password` 需要它做加密                                                                           | `requirements.txt`                                     |
+| **SQLAlchemy**        | 把 Python 物件與 SQL 互相轉換的工具組（ORM + SQL 產生器 + 連線池）                                                                                             | `app/models.py`、`app/db.py`、`app/repositories/`  |
+| **Alembic**           | 資料庫結構的版本控制：記錄「資料表怎麼一步一步變成現在這樣」並負責套用。SQLAlchemy 官方的資料庫遷移（migration）工具，負責「用版本控管的方式修改資料庫結構」。 | `alembic.ini`、`migrations/`                         |
+| **pydantic-settings** | 從`.env` 讀出 `DATABASE_URL` 並驗證格式                                                                                                                    | `app/config.py`                                        |
 
 最重要的觀念：
 
@@ -148,11 +148,11 @@ repositories/*.py（我們寫的程式）
 PyMySQL → MySQL
 ```
 
-| 元件 | 一句話 | 本專案在哪裡 |
-| --- | --- | --- |
-| ① ORM | 查出來的是 `Student` 物件；改物件的屬性，commit 時自動變成 `UPDATE` | `models.py` 的類別、`Session` |
-| ② SQL 產生器 | 用 `select()`、`.where()` 組查詢，自動轉成 MySQL 語法的 SQL | `repositories/` |
-| ③ 連線池 | 事先連好幾條連線，請求來了就借、用完歸還 | `app/db.py` 的 `engine` |
+| 元件          | 一句話                                                                 | 本專案在哪裡                      |
+| ------------- | ---------------------------------------------------------------------- | --------------------------------- |
+| ① ORM        | 查出來的是`Student` 物件；改物件的屬性，commit 時自動變成 `UPDATE` | `models.py` 的類別、`Session` |
+| ② SQL 產生器 | 用`select()`、`.where()` 組查詢，自動轉成 MySQL 語法的 SQL         | `repositories/`                 |
+| ③ 連線池     | 事先連好幾條連線，請求來了就借、用完歸還                               | `app/db.py` 的 `engine`       |
 
 官方文件把 ② 和 ③ 合稱 **Core**，① 稱為 **ORM**；ORM 建在 Core 之上。
 
@@ -190,12 +190,12 @@ WHERE `Student`.student_id = %s FOR UPDATE
 
 每次連 MySQL 都要建立連線、驗證帳密，很花時間。`app/db.py` 的 `create_engine(...)` 會建立一個連線池，重複使用連好的連線：
 
-| 設定 | 值 | 意思 |
-| --- | --- | --- |
-| 常駐連線數 | 5（預設） | 平常保留 5 條連線 |
-| 尖峰時可再多開 | 10（預設） | 同時請求很多時，最多再臨時開 10 條 |
-| `pool_recycle=3600` | 1 小時 | 連線用滿 1 小時就換新的，避免被 MySQL 因閒置太久而斷線 |
-| `pool_pre_ping=True` | — | 借出前先確認連線還活著 |
+| 設定                   | 值         | 意思                                                   |
+| ---------------------- | ---------- | ------------------------------------------------------ |
+| 常駐連線數             | 5（預設）  | 平常保留 5 條連線                                      |
+| 尖峰時可再多開         | 10（預設） | 同時請求很多時，最多再臨時開 10 條                     |
+| `pool_recycle=3600`  | 1 小時     | 連線用滿 1 小時就換新的，避免被 MySQL 因閒置太久而斷線 |
+| `pool_pre_ping=True` | —         | 借出前先確認連線還活著                                 |
 
 一個 HTTP 請求的流程：`get_db()` 開一個 Session → 第一次查詢時向池子借連線 → 請求結束、Session 關閉 → 連線還回池子（不會斷線）。
 
@@ -203,14 +203,14 @@ WHERE `Student`.student_id = %s FOR UPDATE
 
 有。**Session + models 類別**就是 SQLAlchemy 版的 Prisma Client。Prisma Client 裡面同樣有這三個元件，只是包成一個物件。
 
-| 要做的事 | Prisma Client | SQLAlchemy |
-| --- | --- | --- |
-| 建立 | `new PrismaClient()` | `app/db.py` 的 `engine` + `SessionLocal` |
-| 用主鍵查一筆 | `prisma.student.findUnique({ where: { student_id: "S001" } })` | `db.get(Student, "S001")` |
-| 條件查詢 | `prisma.section.findMany({ where: { semester_id: "1151" } })` | `db.scalars(select(Section).where(Section.semester_id == "1151")).all()` |
-| 新增 | `prisma.enrollment.create({ data: {...} })` | `db.add(Enrollment(...))` + `db.commit()` |
-| 鎖定查詢（`FOR UPDATE`） | 沒有對應的方法，要寫原始 SQL（`$queryRaw`） | `.with_for_update()` |
-| 原始 SQL | `prisma.$queryRaw` | `db.execute(text("..."))` |
+| 要做的事                   | Prisma Client                                                    | SQLAlchemy                                                                 |
+| -------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| 建立                       | `new PrismaClient()`                                           | `app/db.py` 的 `engine` + `SessionLocal`                             |
+| 用主鍵查一筆               | `prisma.student.findUnique({ where: { student_id: "S001" } })` | `db.get(Student, "S001")`                                                |
+| 條件查詢                   | `prisma.section.findMany({ where: { semester_id: "1151" } })`  | `db.scalars(select(Section).where(Section.semester_id == "1151")).all()` |
+| 新增                       | `prisma.enrollment.create({ data: {...} })`                    | `db.add(Enrollment(...))` + `db.commit()`                              |
+| 鎖定查詢（`FOR UPDATE`） | 沒有對應的方法，要寫原始 SQL（`$queryRaw`）                    | `.with_for_update()`                                                     |
+| 原始 SQL                   | `prisma.$queryRaw`                                             | `db.execute(text("..."))`                                                |
 
 **為什麼 SQLAlchemy 不需要 `prisma generate`？**
 
@@ -221,12 +221,12 @@ WHERE `Student`.student_id = %s FOR UPDATE
 
 兩者只是剛好都叫 session，是完全不同的東西：
 
-| | SQLAlchemy 的 Session | 登入的 session（JWT） |
-| --- | --- | --- |
-| 解決的問題 | 這次要對資料庫做哪些讀寫 | 這個使用者是誰、有沒有登入 |
-| 存在哪裡 | 後端記憶體 | 瀏覽器的 cookie `access_token` |
-| 存活時間 | 一個 HTTP 請求（`get_db()` 開啟、請求結束關閉） | 8 小時，到期或登出為止 |
-| 內容 | 借來的資料庫連線、目前的交易、讀出或改過的 ORM 物件 | `sub`、`username`、`role`、`ver` 等身分資訊 |
+|              | SQLAlchemy 的 Session                                     | 登入的 session（JWT）                                        |
+| ------------ | --------------------------------------------------------- | ------------------------------------------------------------ |
+| 解決的問題   | 這次要對資料庫做哪些讀寫                                  | 這個使用者是誰、有沒有登入                                   |
+| 存在哪裡     | 後端記憶體                                                | 瀏覽器的 cookie`access_token`                              |
+| 存活時間     | 一個 HTTP 請求（`get_db()` 開啟、請求結束關閉）         | 8 小時，到期或登出為止                                       |
+| 內容         | 借來的資料庫連線、目前的交易、讀出或改過的 ORM 物件       | `sub`、`username`、`role`、`ver` 等身分資訊          |
 | 本專案的程式 | `app/db.py` 的 `SessionLocal`、各處的 `db: Session` | `app/session.py`（簽發、驗證 JWT）、`web/lib/session.ts` |
 
 > 容易搞混：`app/session.py` 處理的是 JWT 登入，跟 SQLAlchemy 的 Session 無關，檔名裡的 session 指的是「登入狀態」。
@@ -674,17 +674,17 @@ def downgrade() -> None:
 
 ## 9. 名詞對照
 
-| 名詞                              | 說明                                                                |
-| --------------------------------- | ------------------------------------------------------------------- |
-| ORM（Object-Relational Mapping）  | 讓一個 Python 物件對應資料表的一列，用物件操作代替手寫 SQL          |
-| DDL（Data Definition Language）   | 定義結構的 SQL：`CREATE TABLE`、`ALTER TABLE`、`CREATE INDEX` |
-| DML（Data Manipulation Language） | 操作資料的 SQL：`SELECT`、`INSERT`、`UPDATE`、`DELETE`      |
-| Migration                         | 一次結構變更的紀錄檔，含「怎麼升級」與「怎麼還原」                  |
-| Dialect（方言）                   | SQLAlchemy 對特定資料庫語法的支援，例如`mysql`、`postgresql`    |
-| Driver（驅動程式）                | 實際和資料庫連線的套件，例如 PyMySQL                                |
-| DB-API 2.0                        | Python 規範的資料庫驅動標準介面（PEP 249）                          |
-| Reflection（反射）                | 從現有資料庫讀回結構，變成 SQLAlchemy 的`Table` 物件              |
-| `MetaData`                      | 一組`Table` 定義的集合；`Base.metadata` 收集了所有 models       |
-| Session                           | ORM 的工作單位：追蹤物件的變更，在 flush／commit 時轉成 SQL（不是登入的 session，見 §3.3）         |
-| flush                             | 把 Session 中尚未送出的變更送到資料庫（仍在交易中，尚未 commit）    |
-| Single Source of Truth            | 唯一來源；本專案中資料庫結構的唯一來源是`models.py`               |
+| 名詞                              | 說明                                                                                        |
+| --------------------------------- | ------------------------------------------------------------------------------------------- |
+| ORM（Object-Relational Mapping）  | 讓一個 Python 物件對應資料表的一列，用物件操作代替手寫 SQL                                  |
+| DDL（Data Definition Language）   | 定義結構的 SQL：`CREATE TABLE`、`ALTER TABLE`、`CREATE INDEX`                         |
+| DML（Data Manipulation Language） | 操作資料的 SQL：`SELECT`、`INSERT`、`UPDATE`、`DELETE`                              |
+| Migration                         | 一次結構變更的紀錄檔，含「怎麼升級」與「怎麼還原」                                          |
+| Dialect（方言）                   | SQLAlchemy 對特定資料庫語法的支援，例如`mysql`、`postgresql`                            |
+| Driver（驅動程式）                | 實際和資料庫連線的套件，例如 PyMySQL                                                        |
+| DB-API 2.0                        | Python 規範的資料庫驅動標準介面（PEP 249）                                                  |
+| Reflection（反射）                | 從現有資料庫讀回結構，變成 SQLAlchemy 的`Table` 物件                                      |
+| `MetaData`                      | 一組`Table` 定義的集合；`Base.metadata` 收集了所有 models                               |
+| Session                           | ORM 的工作單位：追蹤物件的變更，在 flush／commit 時轉成 SQL（不是登入的 session，見 §3.3） |
+| flush                             | 把 Session 中尚未送出的變更送到資料庫（仍在交易中，尚未 commit）                            |
+| Single Source of Truth            | 唯一來源；本專案中資料庫結構的唯一來源是`models.py`                                       |
