@@ -1,6 +1,6 @@
 # SQLAlchemy、Alembic 與資料庫建立筆記
 
-這份筆記說明本專案中「和資料庫有關的套件」各自在做什麼，資料庫是怎麼從零被建出來的，`api/app/models.py` 是怎麼寫、怎麼來的，以及和 v1 使用的 Prisma 差在哪裡。例子都取自本專案。
+這份筆記說明本專案中「和資料庫有關的套件」各自在做什麼，資料庫是怎麼從零被建出來的，以及 `api/app/models.py` 與第一版 migration 是怎麼寫、怎麼來的。例子都取自本專案。
 
 ---
 
@@ -199,23 +199,20 @@ WHERE `Student`.student_id = %s FOR UPDATE
 
 一個 HTTP 請求的流程：`get_db()` 開一個 Session → 第一次查詢時向池子借連線 → 請求結束、Session 關閉 → 連線還回池子（不會斷線）。
 
-### 3.2 沒有像 Prisma Client 的東西嗎？
+### 3.2 查詢與寫入的常用寫法
 
-有。**Session + models 類別**就是 SQLAlchemy 版的 Prisma Client。Prisma Client 裡面同樣有這三個元件，只是包成一個物件。
+**Session + models 類別**就是操作資料庫用的物件：Session 負責連線與交易，models 類別描述要查哪張表、哪些欄位。
 
-| 要做的事                   | Prisma Client                                                    | SQLAlchemy                                                                 |
-| -------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| 建立                       | `new PrismaClient()`                                           | `app/db.py` 的 `engine` + `SessionLocal`                             |
-| 用主鍵查一筆               | `prisma.student.findUnique({ where: { student_id: "S001" } })` | `db.get(Student, "S001")`                                                |
-| 條件查詢                   | `prisma.section.findMany({ where: { semester_id: "1151" } })`  | `db.scalars(select(Section).where(Section.semester_id == "1151")).all()` |
-| 新增                       | `prisma.enrollment.create({ data: {...} })`                    | `db.add(Enrollment(...))` + `db.commit()`                              |
-| 鎖定查詢（`FOR UPDATE`） | 沒有對應的方法，要寫原始 SQL（`$queryRaw`）                    | `.with_for_update()`                                                     |
-| 原始 SQL                   | `prisma.$queryRaw`                                             | `db.execute(text("..."))`                                                |
+| 要做的事                   | SQLAlchemy                                                                 |
+| -------------------------- | -------------------------------------------------------------------------- |
+| 建立                       | `app/db.py` 的 `engine` + `SessionLocal`                             |
+| 用主鍵查一筆               | `db.get(Student, "S001")`                                                |
+| 條件查詢                   | `db.scalars(select(Section).where(Section.semester_id == "1151")).all()` |
+| 新增                       | `db.add(Enrollment(...))` + `db.commit()`                              |
+| 鎖定查詢（`FOR UPDATE`） | `select(...).with_for_update()`                                          |
+| 原始 SQL                   | `db.execute(text("..."))`                                                |
 
-**為什麼 SQLAlchemy 不需要 `prisma generate`？**
-
-- Prisma 的結構寫在 `.prisma` 檔，TypeScript 看不懂，所以要先「產生」client 程式碼，才會有 `prisma.student` 這些方法和型別。
-- SQLAlchemy 的結構本身就是 Python 類別，`Student`、`Student.student_id` 可以直接用，型別也直接寫在 `Mapped[...]` 裡，所以不需要產生步驟。
+models 類別本身就是 Python 類別，`Student`、`Student.student_id` 可以直接用在查詢裡，型別也直接寫在 `Mapped[...]` 中，不需要另外產生程式碼。
 
 ### 3.3 SQLAlchemy 的 Session 不是登入的 session
 
@@ -367,7 +364,7 @@ def _enum(cls):
 ```
 
 - `table_args`：SQLAlchemy 規定 `__table_args__` 若是 tuple，資料表選項的 dict 必須放在最後一個。包成函式避免每張表都要記得這條規則。
-- `fk`：外鍵一律 `ON UPDATE CASCADE`，`ON DELETE` 預設 `RESTRICT`，可為 NULL 的外鍵改傳 `SET NULL`。這正好是 **Prisma 的預設行為**（必填關聯 Restrict、選填關聯 SetNull、更新一律 Cascade）。v1 由 Prisma 建出的外鍵就是這樣，v2 改寫成 SQLAlchemy 時照抄，資料庫才能完全不變（§5）。
+- `fk`：外鍵一律 `ON UPDATE CASCADE`（主鍵值被修改時，子資料的外鍵跟著更新）；`ON DELETE` 預設 `RESTRICT`（仍有子資料參照時拒絕刪除，避免誤刪）。可為 NULL 的外鍵改傳 `SET NULL`，例如 `Section.created_by`：教師被刪除時保留班級，只清空建立者。需要連帶刪除時才傳 `ondelete="CASCADE"`。
 - `_enum`：`values_callable` 讓資料庫存列舉的**值**（`"Open"`），而不是成員名稱。`validate_strings=True` 讓錯誤的字串在 Python 端就被擋下。
 
 ### 3.7 View 也寫成類別，但不由 SQLAlchemy 建立
@@ -510,7 +507,7 @@ autogenerate **偵測不到**，必須手寫：
 | `alembic revision --autogenerate -m "說明"` | 比對 models 與資料庫，產生新的 migration                                                              |
 | `alembic revision -m "說明"`                | 產生空白的 migration（手寫 View 等內容時用）                                                          |
 | `alembic upgrade head --sql`                | **離線模式**：不連資料庫，只把會執行的 SQL 印出來（`database/schema.generated.sql` 由此產生） |
-| `alembic stamp 0001`                        | 只把`alembic_version` 設成指定版本，**不執行任何 DDL**（§5 用到）                            |
+| `alembic stamp <版本>`                      | 只把`alembic_version` 設成指定版本，**不執行任何 DDL**（資料庫已有相同結構、只需補上版本紀錄時使用） |
 
 ### 4.6 本專案對 `env.py` 做的客製化
 
@@ -527,108 +524,29 @@ autogenerate **偵測不到**，必須手寫：
 
 ---
 
-## 5. 本專案的 models.py 是怎麼來的
-
-models.py 不是一開始就這樣寫的，經過了三個階段：
+## 5. models.py 與 0001 是怎麼來的
 
 ```mermaid
 flowchart LR
-    A["原 3NF 設計<br/>3nf_table.sql<br/>（手寫 SQL）"] --> B["v1：schema.prisma<br/>Prisma Migrate 建表<br/>（FastAPI 端另有一份 SQLAlchemy models 手動同步）"]
-    B --> C["v2：models.py 成為唯一來源<br/>Alembic 管理<br/>（2026-10-04）"]
+    A["原始 3NF 設計<br/>api/database/original-design/"] --> B["models.py<br/>（唯一來源）"]
+    B -->|"對空資料庫執行<br/>alembic revision --autogenerate"| C["0001_init.py<br/>＋手寫 View"]
+    C -->|"alembic upgrade head"| D[(MySQL<br/>academic_db)]
 ```
 
-### 5.1 v1：兩份定義要手動同步
+1. **依原始 3NF 設計寫 models.py**：`api/database/original-design/` 保存最初的正規化設計。寫成 models.py 時把 `Course` 拆成課程庫 `Course` 與開課班級 `Section` 等（差異見該資料夾的 README）。約束與索引名稱全部明確寫出，採 `<表>_<欄位>_key／_idx／_fkey` 格式。
+2. **建立空的資料庫**：§1 的步驟 0。
+3. **產生 0001**：`alembic revision --autogenerate -m "初始結構"`。models 有 15 張表、資料庫一張都沒有，差異就是 15 個 `op.create_table(...)`；CHECK 約束跟著 `create_table` 一起輸出（autogenerate 偵測不到的是「修改」既有的 CHECK 約束）。
+4. **手寫 View**：autogenerate 不處理 View，在 `# ### end Alembic commands ###` 之後以 `op.execute("CREATE VIEW ...")` 補上 `v_section_detail`、`v_student_transcript`；`downgrade()` 要先 `DROP VIEW` 再刪除資料表（View 依賴資料表）。
+5. **套用與驗證**：`alembic upgrade head` 建表，`python -m seed` 寫入種子資料。再跑一次 `alembic revision --autogenerate`，應該產生**空的** migration，代表 models 與資料庫已一致（確認後把這個空檔刪掉）。
+6. 之後的改動都走一般流程：0002（View 加領域，手寫）、0003（`token_version`，autogenerate，見 §6）。
 
-v1 有 Express（Node.js）與 FastAPI 兩個後端，共用同一個 MySQL：
+autogenerate 只產生「models 與資料庫的差異」。若資料庫裡已經有同樣結構的表，差異為 0，產生的 migration 會是空的，所以第一版必須對空資料庫產生。
 
-- Express 端用 **Prisma**：`schema.prisma` 定義資料表，`prisma migrate` 建表。
-- FastAPI 端用 **SQLAlchemy** 查詢，所以也要有一份 models，但只拿來查詢、不負責建表，**和 `schema.prisma` 靠人工保持一致**。漏改時，要到執行期查詢出錯才會發現。
-
-### 5.2 v2：改由 models.py 建表，資料庫一個位元組都不動
-
-整併成單一 FastAPI 後端時，目標是「models.py 成為唯一來源，但既有資料庫完全不改」。做法：
-
-1. **完整改寫 models.py**：把 Prisma 建出來的結構逐項寫成 SQLAlchemy，包括 Prisma 自動取的約束名稱（`Section_course_no_fkey`、`UserAccount_username_key`）、Prisma 預設的外鍵行為（就是 `fk()` 函式的由來）、手寫在 Prisma migration 裡的 CHECK 約束。
-2. **證明等價**：用 Alembic 的 `compare_metadata` 比對 models.py 與既有資料庫，結果 **0 個差異**。
-3. **產生 0001**：由 models 渲染出 `op.create_table(...)`，再附上原本 Prisma migration 裡手寫的兩個 `CREATE VIEW`。
-4. **從零驗證**：在空白資料庫上 `alembic upgrade head` + `python -m seed`，和既有資料庫比對，結構差異 0、17 個表與 View 的資料逐筆一致。
-5. **既有資料庫用 `alembic stamp 0001`**：表都已經存在，不需要再建，只要讓 Alembic 知道「這個資料庫已經是 0001 了」。
-6. 之後的改動都走正常流程：0002（View 加領域）、0003（`token_version`）。
-
-這就是為什麼 models.py 開頭寫著「約束與索引名稱沿用最初由 Prisma 建立時的命名」：改了名稱，autogenerate 就會產生「刪除舊約束、建立新約束」的 migration，等於無意義地改動資料庫。
+約束與索引的名稱一經建立就不要更改：改了名稱，autogenerate 會產生「刪除舊約束、建立新約束」的 migration，等於無意義地改動資料庫。
 
 ---
 
-## 6. 和 Prisma 的差別
-
-### 6.1 同一張表的兩種寫法
-
-**Prisma（v1，`schema.prisma`）**：
-
-```prisma
-model Section {
-  section_id   Int           @id @default(autoincrement())
-  course_no    String        @db.Char(5)
-  semester_id  String        @db.Char(4)
-  section_code String        @default("01") @db.Char(2)
-  capacity     Int           @db.SmallInt
-  status       SectionStatus @default(Open)
-  created_by   String?       @db.Char(6)
-
-  course   Course   @relation(fields: [course_no], references: [course_no])
-  creator  Teacher? @relation(fields: [created_by], references: [teacher_id])
-
-  @@unique([course_no, semester_id, section_code])
-  @@unique([section_id, semester_id])
-  @@index([semester_id, status])
-}
-// CHECK (capacity BETWEEN 1 AND 500) 寫不進 schema，只能手動加進 migration.sql
-```
-
-**SQLAlchemy（v2，`models.py`）**：見 §3.5。
-
-可以看到概念幾乎一一對應：
-
-| 概念       | Prisma                                                     | SQLAlchemy                                             |
-| ---------- | ---------------------------------------------------------- | ------------------------------------------------------ |
-| 可為 NULL  | `String?`                                                | `Mapped[str \| None]`                                 |
-| 資料庫型別 | `@db.Char(5)`                                            | `mapped_column(CHAR(5))`                             |
-| 預設值     | `@default("01")`                                         | `server_default="01"`                                |
-| 外鍵       | `@relation(fields: [...], references: [...])`            | `ForeignKey(...)`／`ForeignKeyConstraint(...)`     |
-| 關聯導覽   | 同一個`@relation` 欄位                                   | `relationship()`（和外鍵分開寫）                     |
-| 複合唯一   | `@@unique([...])`                                        | `UniqueConstraint(...)`                              |
-| 約束名稱   | 自動產生（`Section_course_no_fkey`），可用 `map:` 指定 | 不指定時由 SQLAlchemy／MySQL 決定；本專案全部明確寫出  |
-| CHECK 約束 | **不支援**，要手寫在 migration SQL                   | `CheckConstraint(...)`，但 autogenerate 偵測不到變更 |
-| View       | schema 中無法定義（只有預覽功能），要手寫 SQL              | 同樣手寫在 migration 中                                |
-
-### 6.2 工作流程與機制的差別
-
-| 項目                       | Prisma                                                                     | SQLAlchemy + Alembic                                                        |
-| -------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| 結構定義語言               | 專用的 Prisma Schema Language（`.prisma`）                               | 一般的 Python 類別                                                          |
-| 建表／改表                 | `prisma migrate dev`                                                     | `alembic revision --autogenerate` + `alembic upgrade head`              |
-| migration 檔格式           | **純 SQL**（`migration.sql`）                                      | **Python**（`op.add_column(...)`），執行時才翻譯成 SQL              |
-| 比對方式                   | 用一個暫時的**shadow database** 重播所有 migration，再與 schema 比對 | 直接**反射**目前的資料庫，與 `Base.metadata` 比對；不需要 shadow DB |
-| 版本紀錄                   | `_prisma_migrations` 表：每個跑過的 migration 一列（含 checksum）        | `alembic_version` 表：只有一列，記目前版本                                |
-| 還原（down migration）     | **不提供**，要自己寫 SQL 或另外產生                                  | 每個 migration 都有`downgrade()`                                          |
-| 查詢用的程式碼             | `prisma generate` **產生** Prisma Client（有完整型別）             | 不產生程式碼，models 類別本身就是查詢用的物件                               |
-| 查詢寫法                   | `prisma.section.findMany({ where: {...}, include: {...} })`              | `select(Section).where(...).join(...)`                                    |
-| 鎖定查詢（`FOR UPDATE`） | Prisma Client 沒有對應 API，要用`$queryRaw` 寫原始 SQL                   | `.with_for_update()`（本專案選課交易大量使用）                            |
-| 交易                       | `prisma.$transaction(...)`                                               | `Session` 預設就在交易中，`db.commit()` 結束                            |
-| 語言                       | TypeScript／JavaScript                                                     | Python                                                                      |
-
-### 6.3 利弊
-
-|      | Prisma                                                                    | SQLAlchemy + Alembic                                                                                                |
-| ---- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| 優點 | schema 簡潔好讀；migration 是 SQL，一看就知道會做什麼；型別產生完整       | 和 Python 後端同一種語言、同一份定義；可細緻控制 SQL（鎖、子查詢、`EXISTS`）；有 downgrade                        |
-| 缺點 | 只能在 Node.js 生態使用；CHECK、View、鎖定查詢要繞路；沒有 down migration | 寫法較冗長；migration 是 Python，要用`--sql` 才看得到實際 SQL；autogenerate 的盲點（CHECK、View、改名）要自己記住 |
-
-本專案 v2 改用 SQLAlchemy + Alembic 的主要原因不是 Prisma 不好，而是**後端只剩 Python**：留著 Prisma 等於為了建表多維護一套 Node.js 工具，而且又回到兩份定義的問題。
-
----
-
-## 7. 實際改表的步驟（以 token_version 為例）
+## 6. 實際改表的步驟（以 token_version 為例）
 
 1. **改 models.py**：在 `UserAccount` 加上
 
@@ -660,19 +578,19 @@ def downgrade() -> None:
 
 ---
 
-## 8. 本專案踩過的坑
+## 7. 本專案踩過的坑
 
 | 現象                                                                  | 原因                                                                                            | 處理                                                           |
 | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | autogenerate 說 15 張表全部「缺少」                                   | Windows MySQL`lower_case_table_names=1`，反射回來的表名是小寫                                 | `migration_support.patch_case_insensitive_reflection`        |
-| `alembic stamp` 顯示成功，`alembic_version` 卻是空的              | 偵測大小寫的查詢讓 SQLAlchemy 2.x autobegin 開了一個交易沒關，Alembic 以為是外部交易而不 commit | 偵測查詢包在自己的`with connection.begin():`                 |
+| `alembic upgrade`／`stamp` 顯示成功，`alembic_version` 卻是空的 | 偵測大小寫的查詢讓 SQLAlchemy 2.x autobegin 開了一個交易沒關，Alembic 以為是外部交易而不 commit | 偵測查詢包在自己的`with connection.begin():`                 |
 | 所有 alembic 指令都`UnicodeDecodeError`                             | Windows 上 Alembic 以 cp950 讀`alembic.ini`，檔案裡有中文                                     | `alembic.ini` 維持純 ASCII，說明寫在 `env.py`              |
 | migration 出現`SyntaxError: invalid non-printable character U+FEFF` | 用 PowerShell 5.1 的`>` 產生檔案，被加上 UTF-8 BOM                                            | 改由 Python 讀寫，或用 Git Bash 重導向                         |
 | 更新課程領域時主鍵重複                                                | 「清空再全部加回」時，SQLAlchemy 在同一次 flush 中先 INSERT 後 DELETE                           | 只刪除不需要的、只新增新的（`course_service.update_course`） |
 
 ---
 
-## 9. 名詞對照
+## 8. 名詞對照
 
 | 名詞                              | 說明                                                                                        |
 | --------------------------------- | ------------------------------------------------------------------------------------------- |

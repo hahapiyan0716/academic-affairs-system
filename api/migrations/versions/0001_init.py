@@ -1,7 +1,7 @@
 """初始結構：15 張資料表、CHECK 約束與 2 個 View
 
-由 app/models.py 渲染產生（約束與索引名稱沿用最初 Prisma 建立時的命名），
-View 定義沿用原 Prisma migration 的手寫 SQL。
+產生方式：對空資料庫執行 alembic revision --autogenerate，由 api/app/models.py 比對後產生建表指令；
+View 不在 autogenerate 的範圍內，以 op.execute 手寫（詳見 migrations/README.md）。
 
 Revision ID: 0001
 Revises:
@@ -14,10 +14,10 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import mysql
 
-revision: str = "0001"
-down_revision: str | None = None
-branch_labels: str | Sequence[str] | None = None
-depends_on: str | Sequence[str] | None = None
+revision: str = "0001"                                  # 版本 ID
+down_revision: str | None = None                        # 前一個版本的 ID；None 表示這是第一版（base）
+branch_labels: str | Sequence[str] | None = None        # 分支標籤
+depends_on: str | Sequence[str] | None = None           # 依賴的其他版本
 
 
 def upgrade() -> None:

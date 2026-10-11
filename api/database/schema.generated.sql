@@ -10,7 +10,7 @@ CREATE TABLE alembic_version (
 
 -- Running upgrade  -> 0001
 -- 這個是第一次的資料庫升級，建立基本的資料表結構。
--- 對應 migration 0001_initial.py
+-- 對應 migration 0001_init.py
 
 CREATE TABLE `Building` (
     building_id CHAR(4) NOT NULL,

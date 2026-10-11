@@ -7,8 +7,8 @@ SQLAlchemy 2.0 ORM(Object-Relational Mapping) 模型 —— 資料庫結構的�
   3. 檢查產生的 migration（autogenerate 不會偵測 CHECK 約束與 View 的變更，需手動補上）
   4. alembic upgrade head                         套用到資料庫
 
-命名慣例：資料表 PascalCase、欄位 snake_case，約束與索引名稱沿用最初由 Prisma 建立時的命名
-(<表>_<欄位>_key / _idx / _fkey)，讓既有資料庫與本檔完全一致。
+命名慣例：資料表 PascalCase、欄位 snake_case，約束與索引名稱採用 <表>_<欄位>_key / _idx / _fkey 格式。
+名稱一經建立就不要更改：改名後 autogenerate 會產生「刪除舊約束、建立新約束」的 migration。
 
 什麼是 ORM？
 ORM 是 Object-Relational Mapping 的縮寫，意指「物件導向程式設計」與「關聯式資料庫」之間的對應關係。
