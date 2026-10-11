@@ -111,7 +111,7 @@ INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
 
 ### 步驟 4：API 執行期（SQLAlchemy）
 
-`app/db.py` 建立全程式共用的 `engine`（連線池）與 `SessionLocal`。每個 HTTP 請求透過 `get_db()` 拿到一個 `Session`，repositories 在裡面查詢。這一層和「建立資料庫」無關，見 §3.6 的簡短說明。
+`app/db.py` 建立全程式共用的 `engine`（連線池）與 `SessionLocal`。每個 HTTP 請求透過 `get_db()` 拿到一個 `Session`，repositories 在裡面查詢。這一層和「建立資料庫」無關，見 §3.1 的說明。
 
 ---
 
@@ -131,16 +131,123 @@ INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
 
 ## 3. SQLAlchemy
 
-### 3.1 兩層架構：Core 與 ORM
+### 3.1 SQLAlchemy 的三個元件：ORM、SQL 產生器、連線池
 
-| 層             | 操作的對象                                    | 本專案的例子                                                                                                       |
-| -------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| **Core** | 資料表、欄位、SQL 運算式；`Engine` 與連線池 | `create_engine(...)`、`text("SELECT @@lower_case_table_names")`、`select(func.count()).select_from(Student)` |
-| **ORM**  | Python 類別與物件（一個物件 = 一列資料）      | `class Section(Base)`、`db.get(Student, "S001")`、`db.add(enrollment)`、`db.commit()`                      |
+SQLAlchemy 不是單一功能，而是三個元件疊在一起：
 
-ORM 建在 Core 之上：你定義 `class Section(Base)` 時，SQLAlchemy 在背後同時建立了一個 Core 的 `Table("Section", ...)` 物件。
+```text
+repositories/*.py（我們寫的程式）
+      │
+      ▼
+① ORM          物件 ⇄ 資料列
+      ▼
+② SQL 產生器   Python 寫的查詢 → SQL 字串
+      ▼
+③ 連線池       借用已經連好的資料庫連線
+      ▼
+PyMySQL → MySQL
+```
 
-### 3.2 `Base` 與 `metadata`：所有資料表的清單
+| 元件 | 一句話 | 本專案在哪裡 |
+| --- | --- | --- |
+| ① ORM | 查出來的是 `Student` 物件；改物件的屬性，commit 時自動變成 `UPDATE` | `models.py` 的類別、`Session` |
+| ② SQL 產生器 | 用 `select()`、`.where()` 組查詢，自動轉成 MySQL 語法的 SQL | `repositories/` |
+| ③ 連線池 | 事先連好幾條連線，請求來了就借、用完歸還 | `app/db.py` 的 `engine` |
+
+官方文件把 ② 和 ③ 合稱 **Core**，① 稱為 **ORM**；ORM 建在 Core 之上。
+
+#### ① ORM：一列資料 = 一個物件
+
+```python
+# 退選（services/enrollment_service.py，簡化）
+enrollment = enrollment_repository.get(db, student_id, section_id)  # 查出一個 Enrollment 物件
+enrollment.status = EnrollmentStatus.Withdrawn                      # 改屬性
+db.commit()                                                          # SQLAlchemy 自動產生 UPDATE
+```
+
+不用自己寫 `UPDATE`，也不用自己把查詢結果轉成物件。負責記住「哪些物件被改過」的是 `Session`。
+
+#### ② SQL 產生器：用 Python 組 SQL
+
+```python
+# student_repository.lock
+select(Student).where(Student.student_id == "S001").with_for_update()
+```
+
+實際產生的 SQL：
+
+```sql
+SELECT `Student`.student_id, `Student`.student_name, ... FROM `Student`
+WHERE `Student`.student_id = %s FOR UPDATE
+-- 參數：'S001'
+```
+
+- 值變成 `%s`，和 SQL 分開送給 PyMySQL，所以不會有 SQL Injection。
+- 複雜的條件也組得出來，例如依領域篩選的 `exists()`（`section_repository._has_field`）會產生 `EXISTS (SELECT * FROM CurriculumField WHERE ...)`。
+- 想看某個查詢會變成什麼 SQL：`print(stmt.compile(dialect=mysql.dialect()))`（`from sqlalchemy.dialects import mysql`）。
+
+#### ③ 連線池：重複使用連線
+
+每次連 MySQL 都要建立連線、驗證帳密，很花時間。`app/db.py` 的 `create_engine(...)` 會建立一個連線池，重複使用連好的連線：
+
+| 設定 | 值 | 意思 |
+| --- | --- | --- |
+| 常駐連線數 | 5（預設） | 平常保留 5 條連線 |
+| 尖峰時可再多開 | 10（預設） | 同時請求很多時，最多再臨時開 10 條 |
+| `pool_recycle=3600` | 1 小時 | 連線用滿 1 小時就換新的，避免被 MySQL 因閒置太久而斷線 |
+| `pool_pre_ping=True` | — | 借出前先確認連線還活著 |
+
+一個 HTTP 請求的流程：`get_db()` 開一個 Session → 第一次查詢時向池子借連線 → 請求結束、Session 關閉 → 連線還回池子（不會斷線）。
+
+### 3.2 沒有像 Prisma Client 的東西嗎？
+
+有。**Session + models 類別**就是 SQLAlchemy 版的 Prisma Client。Prisma Client 裡面同樣有這三個元件，只是包成一個物件。
+
+| 要做的事 | Prisma Client | SQLAlchemy |
+| --- | --- | --- |
+| 建立 | `new PrismaClient()` | `app/db.py` 的 `engine` + `SessionLocal` |
+| 用主鍵查一筆 | `prisma.student.findUnique({ where: { student_id: "S001" } })` | `db.get(Student, "S001")` |
+| 條件查詢 | `prisma.section.findMany({ where: { semester_id: "1151" } })` | `db.scalars(select(Section).where(Section.semester_id == "1151")).all()` |
+| 新增 | `prisma.enrollment.create({ data: {...} })` | `db.add(Enrollment(...))` + `db.commit()` |
+| 鎖定查詢（`FOR UPDATE`） | 沒有對應的方法，要寫原始 SQL（`$queryRaw`） | `.with_for_update()` |
+| 原始 SQL | `prisma.$queryRaw` | `db.execute(text("..."))` |
+
+**為什麼 SQLAlchemy 不需要 `prisma generate`？**
+
+- Prisma 的結構寫在 `.prisma` 檔，TypeScript 看不懂，所以要先「產生」client 程式碼，才會有 `prisma.student` 這些方法和型別。
+- SQLAlchemy 的結構本身就是 Python 類別，`Student`、`Student.student_id` 可以直接用，型別也直接寫在 `Mapped[...]` 裡，所以不需要產生步驟。
+
+### 3.3 SQLAlchemy 的 Session 不是登入的 session
+
+兩者只是剛好都叫 session，是完全不同的東西：
+
+| | SQLAlchemy 的 Session | 登入的 session（JWT） |
+| --- | --- | --- |
+| 解決的問題 | 這次要對資料庫做哪些讀寫 | 這個使用者是誰、有沒有登入 |
+| 存在哪裡 | 後端記憶體 | 瀏覽器的 cookie `access_token` |
+| 存活時間 | 一個 HTTP 請求（`get_db()` 開啟、請求結束關閉） | 8 小時，到期或登出為止 |
+| 內容 | 借來的資料庫連線、目前的交易、讀出或改過的 ORM 物件 | `sub`、`username`、`role`、`ver` 等身分資訊 |
+| 本專案的程式 | `app/db.py` 的 `SessionLocal`、各處的 `db: Session` | `app/session.py`（簽發、驗證 JWT）、`web/lib/session.ts` |
+
+> 容易搞混：`app/session.py` 處理的是 JWT 登入，跟 SQLAlchemy 的 Session 無關，檔名裡的 session 指的是「登入狀態」。
+
+一個請求裡兩者同時出現，但各做各的：
+
+```text
+瀏覽器帶著 cookie（JWT）發出 POST /api/enrollments
+  │
+  ├─ require_auth：驗證 JWT → 知道「你是 S001」          ← 登入 session
+  │
+  └─ get_db()：開一個 SQLAlchemy Session
+        → 鎖學生、鎖班級、INSERT Enrollment → commit     ← 資料庫 Session
+        → 請求結束，Session 關閉、連線還回連線池
+```
+
+簡單說：**JWT 告訴後端「誰」在操作，SQLAlchemy Session 負責「怎麼」對資料庫操作。**
+
+補充：傳統網站常說的「伺服器端 session」（伺服器記住登入狀態，cookie 裡只放一個 session ID）是 JWT 的替代方案，屬於登入那一邊。`系統架構筆記.md` §11.2 談 Token 撤銷時說的「改用伺服器端 session」指的就是這種，同樣和 SQLAlchemy 的 Session 無關。
+
+### 3.4 `Base` 與 `metadata`：所有資料表的清單
 
 ```python
 class Base(DeclarativeBase):
@@ -151,7 +258,7 @@ class Base(DeclarativeBase):
 - `Base.metadata` 是一個記憶體中的物件，內容是「15 張資料表應該長什麼樣子」：欄位、型別、主鍵、外鍵、索引、約束。
 - **它只是描述，不會連線、不會建表。** Alembic 的 `env.py` 用 `target_metadata = Base.metadata` 把這份描述拿去和真正的資料庫比對（§4.4）。
 
-### 3.3 一張表怎麼寫：以 `Section` 為例
+### 3.5 一張表怎麼寫：以 `Section` 為例
 
 左邊是 `models.py`，右邊是它最後在 MySQL 產生的 DDL（取自 `api/database/schema.generated.sql`）：
 
@@ -215,7 +322,7 @@ CREATE INDEX `Section_semester_id_status_idx` ON `Section` (semester_id, status)
 | `server_default="01"`                              | `DEFAULT '01'`                                                        | 預設值寫進 DDL，由資料庫產生（見下方說明）                                |
 | `server_default=NOW`                               | `DEFAULT CURRENT_TIMESTAMP`                                           | `NOW = func.current_timestamp()`                                        |
 | `_enum(SectionStatus)`                             | `ENUM('Open','Cancelled')`                                            | Python 的`StrEnum` 對應 MySQL 的 ENUM                                   |
-| `fk("Course.course_no", "Section_course_no_fkey")` | `CONSTRAINT ... FOREIGN KEY ... ON DELETE RESTRICT ON UPDATE CASCADE` | `fk()` 是本專案的輔助函式（§3.4）                                      |
+| `fk("Course.course_no", "Section_course_no_fkey")` | `CONSTRAINT ... FOREIGN KEY ... ON DELETE RESTRICT ON UPDATE CASCADE` | `fk()` 是本專案的輔助函式（§3.6）                                      |
 | `UniqueConstraint(...)`                            | `CONSTRAINT ... UNIQUE (...)`                                         | 名稱明確寫出                                                              |
 | `Index(...)`                                       | `CREATE INDEX ...`                                                    |                                                                           |
 | `CheckConstraint(...)`                             | `CONSTRAINT ... CHECK (...)`                                          | MySQL 8.0.16 起才真正強制執行                                             |
@@ -245,7 +352,7 @@ t.user = UserAccount(...)           # seed 中：指派後 flush 時自動寫入
 
 真正在資料庫中建立關聯的是外鍵（`fk(...)`、`ForeignKeyConstraint`）。`cascade="all, delete-orphan"` 也只是 ORM 的行為：從 `course.fields` 清單移除一個物件，flush 時 SQLAlchemy 會替你下 `DELETE`。這和外鍵上的 `ON DELETE CASCADE`（由 MySQL 執行）是兩回事。
 
-### 3.4 本專案自訂的三個輔助函式
+### 3.6 本專案自訂的三個輔助函式
 
 ```python
 def table_args(*items):
@@ -263,7 +370,7 @@ def _enum(cls):
 - `fk`：外鍵一律 `ON UPDATE CASCADE`，`ON DELETE` 預設 `RESTRICT`，可為 NULL 的外鍵改傳 `SET NULL`。這正好是 **Prisma 的預設行為**（必填關聯 Restrict、選填關聯 SetNull、更新一律 Cascade）。v1 由 Prisma 建出的外鍵就是這樣，v2 改寫成 SQLAlchemy 時照抄，資料庫才能完全不變（§5）。
 - `_enum`：`values_callable` 讓資料庫存列舉的**值**（`"Open"`），而不是成員名稱。`validate_strings=True` 讓錯誤的字串在 Python 端就被擋下。
 
-### 3.5 View 也寫成類別，但不由 SQLAlchemy 建立
+### 3.7 View 也寫成類別，但不由 SQLAlchemy 建立
 
 ```python
 class SectionDetailView(Base):
@@ -277,25 +384,7 @@ class SectionDetailView(Base):
 - View 真正的定義是 migration 中手寫的 `CREATE VIEW ... AS SELECT ...`（`0001_init.py`、`0002_field_names.py`）。
 - `info={"is_view": True}` 是給 Alembic 看的標記：比對時略過它，否則 Alembic 會以為「models 有一張叫 `v_section_detail` 的表，資料庫沒有」，然後產生 `CREATE TABLE`（見 §4.6 的 `include_object`）。
 
-### 3.6 執行期：SQLAlchemy 如何產生查詢（簡述）
-
-建好資料庫之後，SQLAlchemy 在 API 中負責把 Python 寫的查詢轉成 SQL：
-
-```python
-# app/repositories/student_repository.py
-def lock(db: Session, student_id: str) -> Student | None:
-    return db.scalar(select(Student).where(Student.student_id == student_id).with_for_update())
-```
-
-送到 MySQL 的大致是：
-
-```sql
-SELECT ... FROM `Student` WHERE `Student`.student_id = %(student_id_1)s FOR UPDATE
-```
-
-`student_id` 是以**參數**傳給 PyMySQL，而不是拼進字串，所以不會有 SQL Injection。`app/db.py` 另外設定了連線池（`pool_pre_ping`、`pool_recycle`）與隔離等級 `READ COMMITTED`，這些屬於執行期的設定，與建表無關。
-
-### 3.7 為什麼不用 `Base.metadata.create_all()`
+### 3.8 為什麼不用 `Base.metadata.create_all()`
 
 SQLAlchemy 本身有一個 `create_all()`，可以依 models 直接建表。本專案**禁止使用**，原因：
 
@@ -496,7 +585,7 @@ model Section {
 // CHECK (capacity BETWEEN 1 AND 500) 寫不進 schema，只能手動加進 migration.sql
 ```
 
-**SQLAlchemy（v2，`models.py`）**：見 §3.3。
+**SQLAlchemy（v2，`models.py`）**：見 §3.5。
 
 可以看到概念幾乎一一對應：
 
@@ -596,6 +685,6 @@ def downgrade() -> None:
 | DB-API 2.0                        | Python 規範的資料庫驅動標準介面（PEP 249）                          |
 | Reflection（反射）                | 從現有資料庫讀回結構，變成 SQLAlchemy 的`Table` 物件              |
 | `MetaData`                      | 一組`Table` 定義的集合；`Base.metadata` 收集了所有 models       |
-| Session                           | ORM 的工作單位：追蹤物件的變更，在 flush／commit 時轉成 SQL         |
+| Session                           | ORM 的工作單位：追蹤物件的變更，在 flush／commit 時轉成 SQL（不是登入的 session，見 §3.3）         |
 | flush                             | 把 Session 中尚未送出的變更送到資料庫（仍在交易中，尚未 commit）    |
 | Single Source of Truth            | 唯一來源；本專案中資料庫結構的唯一來源是`models.py`               |
