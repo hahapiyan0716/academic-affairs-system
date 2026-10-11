@@ -398,6 +398,8 @@ class Section(Base):
     #   一次處理多個班級時，改用 selectinload 預先載入，避免每個班級各查一次（N+1 問題）。
     course: Mapped[Course] = relationship()
     semester: Mapped[Semester] = relationship()
+    # Mapped[...] 是 SQLAlchemy ORM 的型別標註，表示此屬性由 SQLAlchemy 管理，以及讀取時預期得到的型別。
+    # list[...] 代表這個屬性會取得多個物件；"SectionTeacher" 加引號是因為該類別定義在下方，避免尚未定義就被解析。
     # 一個班級可以有多位教師
     # cascade="all, delete-orphan" 表示當 Section 被刪除時，其關聯的 SectionTeacher 紀錄也會被刪除。
     teachers: Mapped[list["SectionTeacher"]] = relationship(
@@ -427,6 +429,8 @@ class SectionTeacher(Base):
     is_primary: Mapped[bool] = mapped_column(Boolean, server_default=TRUE)  # 主授教師（列表中排在前面）
 
     section: Mapped[Section] = relationship(back_populates="teachers")
+    # Mapped[Teacher] 表示此屬性會取得單一 Teacher 物件；Teacher 已在上方定義，所以不必寫成字串 "Teacher"。
+    # 冒號後的 Mapped[Teacher] 負責型別標註，等號右側的 relationship() 才負責設定 ORM 關聯。
     teacher: Mapped[Teacher] = relationship()
 
 
@@ -442,11 +446,15 @@ class SectionSchedule(Base):
             ondelete="CASCADE",
             onupdate="CASCADE",
         ),
+
+        # 防止「同班級、同星期、同時段」重複上課
         UniqueConstraint("section_id", "weekday", "period", name="SectionSchedule_section_id_weekday_period_key"),
         # 資料庫層防止「同學期、同教室、同時段」重複借用（含併發開課的競態）
         UniqueConstraint("semester_id", "room_code", "weekday", "period", name="uq_room_timeslot"),
         Index("SectionSchedule_room_code_idx", "room_code"),
+        # 檢查星期的範圍
         CheckConstraint("weekday BETWEEN 1 AND 7", name="chk_schedule_weekday"),
+        # 檢查節次的範圍
         CheckConstraint("period BETWEEN 1 AND 14", name="chk_schedule_period"),
     )
 
@@ -520,6 +528,7 @@ class ScoreChangeLog(Base):
 # ---------------------------------------------------------------------
 # View（唯讀）：由 migrations/versions/ 以 CREATE VIEW 建立（目前的定義在 0002_field_names.py）
 # info={"is_view": True} 讓 Alembic autogenerate 略過它們（見 migrations/env.py）
+# View 是一種特殊的資料表，它不儲存實際的資料，而是根據其他資料表的內容動態產生。
 # ---------------------------------------------------------------------
 
 
