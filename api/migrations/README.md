@@ -6,7 +6,7 @@ Alembic 的 migration 目錄。資料庫結構的唯一來源是 `app/models.py`
 
 | 檔案 | 內容 |
 | --- | --- |
-| `env.py` | Alembic 執行環境：連線字串取自 `.env` 的 `DATABASE_URL`，比對目標為 `app.models` 的 `Base.metadata` |
+| `env.py` | Alembic 執行環境：連線字串取自 `.env` 的 `DATABASE_URL`，比對目標為 `app.models` 的 `Base.metadata`（見下方「env.py 的運作」） |
 | `script.py.mako` | `alembic revision` 產生新 migration 檔時使用的樣板 |
 | `versions/` | 各版本的 migration，每個檔案有 `upgrade()`（升級）與 `downgrade()`（還原） |
 
@@ -22,6 +22,46 @@ Alembic 的 migration 目錄。資料庫結構的唯一來源是 `app/models.py`
 
 - 0001 的 `down_revision = None`，表示它前面沒有版本（Alembic 稱為 `base`，即空資料庫）。
 - 資料庫目前的版本記在 `alembic_version` 表（只有一欄 `version_num`）。`alembic upgrade` 依此決定從哪一版開始執行；`alembic current` 讀的也是它。
+
+## env.py 的運作
+
+每個 alembic 指令（`upgrade`、`revision --autogenerate`、`current`……）都會先執行 `env.py`。Alembic 依 `alembic.ini` 的 `script_location` 找到 `migrations/`；`prepend_sys_path = .` 把目前目錄加入 `sys.path`，`env.py` 才能 `import app.models`，所以 alembic 指令一律在 `api/` 下執行。
+
+### 執行順序
+
+1. `config = context.config`：取得 `alembic.ini` 的內容。
+2. `fileConfig(...)`：依 `alembic.ini` 的 `[loggers]` 等區段設定 Alembic 與 SQLAlchemy 的 log 輸出（例如 `INFO [alembic.runtime.migration] Running upgrade ...`）。
+3. `target_metadata = Base.metadata`：`import app.models` 時，每個繼承 `Base` 的類別都會把自己的資料表登記到 `Base.metadata`。autogenerate 以它為「應有的結構」。
+4. 依 `context.is_offline_mode()` 選擇其中一種模式，設定好 `context` 後呼叫 `context.run_migrations()`，依版本鏈逐一執行各 migration 的 `upgrade()` 或 `downgrade()`。
+
+### 兩種模式
+
+| | 離線模式 `run_migrations_offline()` | 一般模式 `run_migrations_online()` |
+| --- | --- | --- |
+| 觸發方式 | 指令加上 `--sql`（例如 `alembic upgrade head --sql`） | 其他所有指令 |
+| 是否連線 | 不連線，把 SQL 印到終端機 | 以 `create_engine` 連上資料庫並執行 |
+| 連線字串的用途 | 只用來判斷方言（MySQL），決定 SQL 語法 | 實際連線 |
+| 參數值 | `literal_binds=True`：值直接寫進 SQL 字串，因為沒有連線可以另外傳參數 | 照一般方式以參數傳送 |
+| 能否 autogenerate | 不能（沒有資料庫可以反射比對） | 能 |
+
+### 各項設定
+
+| 設定 | 模式 | 作用 |
+| --- | --- | --- |
+| `get_settings().database_url` | 兩者 | 連線字串取自 `app/config.py`（`.env` 的 `DATABASE_URL`，可用同名環境變數覆寫），不寫在 `alembic.ini`，避免密碼進入版控 |
+| `target_metadata=target_metadata` | 兩者 | autogenerate 比對的「應有結構」 |
+| `include_object`（`app/migration_support.py`） | 兩者 | 決定哪些物件納入比對：① 略過帶 `info={"is_view": True}` 的 View 類別；② 資料庫有、models 沒有的表（`alembic_version`、View）不提議刪除 |
+| `poolclass=pool.NullPool` | 一般 | migration 是一次性指令，用完即關，不需要連線池 |
+| `patch_case_insensitive_reflection`（`app/migration_support.py`） | 一般 | 偵測到 `lower_case_table_names` 不為 0（Windows 預設為 1）時，把反射回來的小寫表名換回 models 的 PascalCase；否則 autogenerate 會把所有表判定為「缺少」 |
+| `compare_type=True` | 一般 | 欄位型別的差異（例如 `CHAR(4)` → `CHAR(6)`）納入比對 |
+| `compare_server_default=True` | 一般 | `server_default` 的差異納入比對（Alembic 預設不比對） |
+| `with context.begin_transaction():` | 兩者 | 由 Alembic 開啟並 commit 交易；`alembic_version` 的寫入在這個交易中完成 |
+
+### 交易的注意事項
+
+- MySQL 的 DDL（`CREATE TABLE`、`ALTER TABLE`）會自動 commit，無法 rollback（log 中的 `Will assume non-transactional DDL`）。migration 執行到一半失敗時，已執行的 DDL 會留在資料庫，需要手動處理。
+- `alembic_version` 的寫入是一般的 `INSERT`／`UPDATE`，靠 `context.begin_transaction()` commit。若在它之前用同一條連線查詢而沒有結束交易（SQLAlchemy 2.x 的 autobegin），Alembic 會視為外部交易而不 commit，版本紀錄會在連線關閉時被 rollback。因此 `patch_case_insensitive_reflection` 的偵測查詢包在自己的 `with connection.begin():` 中。
+- 在 `env.py` 新增任何要先查詢資料庫的設定時，同樣要包在自己的 `connection.begin()` 中。
 
 ## models.py、migration 與 schema.generated.sql 的關係
 

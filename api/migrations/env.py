@@ -21,15 +21,17 @@ from app.models import Base
 config = context.config
 
 # 依 alembic.ini 的 [loggers] 等區段設定 log 輸出格式
+# 這裡的 log 是指 Alembic 的日誌
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # autogenerate 以此為「應有的結構」，與實際資料庫比對後產生差異
+# Base.metadata 是所有資料表的集合，用於比對
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    """離線模式：不連資料庫，只輸出 SQL（alembic upgrade head --sql）"""
+    """離線模式：不連資料庫，只輸出 SQL（觸發離線指令：alembic upgrade head --sql）"""
     context.configure(
         url=get_settings().database_url,
         target_metadata=target_metadata,
@@ -37,6 +39,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
+    # 在離線模式下，使用 begin_transaction() 來包裝 migration
     with context.begin_transaction():
         context.run_migrations()
 
@@ -45,6 +48,7 @@ def run_migrations_online() -> None:
     """一般模式：連上資料庫直接執行 migration"""
     # NullPool：migration 是一次性指令，不需要連線池
     connectable = create_engine(get_settings().database_url, poolclass=pool.NullPool)
+    # with ... as ... 是 Python 的上下文管理器，用於確保資源的正確釋放，也就是說在程式結束時自動關閉連線
     with connectable.connect() as connection:
         patch_case_insensitive_reflection(connection, target_metadata)
         context.configure(
@@ -55,6 +59,7 @@ def run_migrations_online() -> None:
             compare_type=True,
             compare_server_default=True,
         )
+        # 在線上模式下，使用 begin_transaction() 來包裝 migration
         with context.begin_transaction():
             context.run_migrations()
 
