@@ -5,7 +5,7 @@ from datetime import datetime
 import bcrypt
 from sqlalchemy.orm import Session
 
-from app.errors import ForbiddenError, UnauthorizedError
+from app.errors import BadRequestError, ForbiddenError, UnauthorizedError
 from app.models import UserAccount
 from app.repositories import user_repository
 from app.schemas.auth_schema import PASSWORD_MAX_BYTES
@@ -48,16 +48,44 @@ def to_current_user(account: UserAccount) -> CurrentUser:
         name=name,
         teacher_id=account.teacher.teacher_id if account.teacher else None,
         student_id=account.student.student_id if account.student else None,
+        token_version=account.token_version,
     )
 
 
-def ensure_active(db: Session, user_id: int) -> None:
+def ensure_session_valid(db: Session, user: CurrentUser) -> None:
     """
-    每個需要登入的請求都會呼叫：JWT 有效期間帳號仍可能被停用或刪除，必須以資料庫為準。
+    每個需要登入的請求都會呼叫：JWT 有效期間帳號仍可能被停用、刪除或變更密碼，必須以資料庫為準。
     回 401（而非 403）讓前端清除 cookie 並回到登入頁。
     """
-    if not user_repository.find_is_active(db, user_id):
+    state = user_repository.find_session_state(db, user.user_id)
+    if state is None or not state[0]:
         raise UnauthorizedError("帳號已停用或不存在，請重新登入")
+    # 版本不同代表簽發此 JWT 之後密碼已被修改或重設
+    if state[1] != user.token_version:
+        raise UnauthorizedError("密碼已變更，請重新登入")
+
+
+def set_password(account: UserAccount, password: str) -> None:
+    """設定新密碼並讓所有既有的登入失效（呼叫端負責 commit）"""
+    account.password_hash = hash_password(password)
+    account.token_version += 1
+
+
+def change_password(db: Session, user_id: int, current_password: str, new_password: str) -> CurrentUser:
+    """
+    登入者修改自己的密碼；回傳新版本的身分，由 route 重新簽發 cookie，讓目前這台裝置維持登入。
+    目前密碼錯誤回 400 而非 401：401 會讓前端當成登入失效而登出。
+    """
+    account = user_repository.get_by_id(db, user_id)
+    if account is None:
+        raise UnauthorizedError("帳號已停用或不存在，請重新登入")
+    if not verify_password(current_password, account.password_hash):
+        raise BadRequestError("目前的密碼不正確")
+    if verify_password(new_password, account.password_hash):
+        raise BadRequestError("新密碼不可與目前的密碼相同")
+    set_password(account, new_password)
+    db.commit()
+    return to_current_user(account)
 
 
 def login(db: Session, username: str, password: str) -> CurrentUser:

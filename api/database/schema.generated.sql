@@ -306,3 +306,9 @@ WHERE e.status IN ('Selected', 'Manual');
 
 UPDATE alembic_version SET version_num='0002' WHERE alembic_version.version_num = '0001';
 
+-- Running upgrade 0002 -> 0003
+
+ALTER TABLE `UserAccount` ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0;
+
+UPDATE alembic_version SET version_num='0003' WHERE alembic_version.version_num = '0002';
+

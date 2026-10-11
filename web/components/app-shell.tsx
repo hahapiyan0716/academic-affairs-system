@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { GraduationCap } from "lucide-react";
+import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { LogoutButton } from "@/components/logout-button";
 import { NavLinks, type NavItem } from "@/components/nav-links";
 import { AUTH_COOKIE, verifySession } from "@/lib/session";
@@ -35,6 +36,7 @@ export async function AppShell({
             <span className="hidden text-muted-foreground md:inline">
               {ROLE_LABEL[user.role]}・{user.name}（{user.username}）
             </span>
+            <ChangePasswordDialog />
             <LogoutButton />
           </div>
         </div>

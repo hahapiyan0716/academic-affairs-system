@@ -2,9 +2,11 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
+import { KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { EmptyState, ErrorState, LoadingState, PageHeader } from "@/components/common";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,10 +15,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { api, useApiQuery, useInvalidate } from "@/lib/api";
 import { ROLE_LABEL, STUDENT_STATUS } from "@/lib/labels";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
-import type { AdminUser, Role } from "@/types";
+import type { AdminUser, Role, SessionUser } from "@/types";
 import CreateUserDialog from "./create-user-dialog";
+import ResetPasswordDialog from "./reset-password-dialog";
 
-/** 帳號管理：依身分與關鍵字篩選帳號、建立帳號、啟用／停用、調整學籍 */
+/** 帳號管理：依身分與關鍵字篩選帳號、建立帳號、啟用／停用、調整學籍、重設密碼 */
 export default function UsersPage() {
   const [role, setRole] = useState<"" | Role>(""); // 空字串 = 全部身分
   const [q, setQ] = useState("");
@@ -24,6 +27,10 @@ export default function UsersPage() {
   const keyword = useDebouncedValue(q.trim());
   // 篩選條件改變 → query key 改變 → 自動重新請求
   const { data, error, isPending } = useApiQuery<AdminUser[]>("/api/admin/users", { role, q: keyword });
+  // 自己的密碼只能經由頂部的「修改密碼」變更（需驗證目前密碼），因此不在自己那一列顯示重設按鈕
+  const { data: me } = useApiQuery<{ user: SessionUser }>("/api/auth/me");
+  // 重設密碼中的帳號；null = 對話框關閉
+  const [resetting, setResetting] = useState<AdminUser | null>(null);
   const invalidate = useInvalidate();
 
   /** 啟用／停用登入（後端禁止停用自己） */
@@ -89,6 +96,7 @@ export default function UsersPage() {
                   <TableHead>學籍</TableHead>
                   <TableHead>最後登入</TableHead>
                   <TableHead className="text-right">啟用</TableHead>
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -132,6 +140,14 @@ export default function UsersPage() {
                         onCheckedChange={() => toggleActive.mutate(u)}
                       />
                     </TableCell>
+                    <TableCell className="text-right">
+                      {me && me.user.sub !== String(u.user_id) && (
+                        <Button variant="ghost" size="sm" onClick={() => setResetting(u)}>
+                          <KeyRound />
+                          重設密碼
+                        </Button>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -139,6 +155,8 @@ export default function UsersPage() {
           )}
         </CardContent>
       </Card>
+      {/* 關閉時卸載對話框，下次開啟時表單是空的 */}
+      {resetting && <ResetPasswordDialog user={resetting} onClose={() => setResetting(null)} />}
     </>
   );
 }

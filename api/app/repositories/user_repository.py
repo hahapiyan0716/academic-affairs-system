@@ -21,9 +21,12 @@ def get_by_id(db: Session, user_id: int) -> UserAccount | None:
     return db.scalar(select(UserAccount).where(UserAccount.user_id == user_id).options(*_with_profiles()))
 
 
-def find_is_active(db: Session, user_id: int) -> bool | None:
-    """只查帳號的啟用狀態（以主鍵查單一欄位）；帳號不存在時回傳 None"""
-    return db.scalar(select(UserAccount.is_active).where(UserAccount.user_id == user_id))
+def find_session_state(db: Session, user_id: int) -> tuple[bool, int] | None:
+    """只查驗證登入所需的兩個欄位（啟用狀態、登入狀態版本）；帳號不存在時回傳 None"""
+    row = db.execute(
+        select(UserAccount.is_active, UserAccount.token_version).where(UserAccount.user_id == user_id)
+    ).first()
+    return (row.is_active, row.token_version) if row else None
 
 
 def list_users(db: Session, role: Role | None, keyword: str | None) -> list[UserAccount]:

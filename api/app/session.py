@@ -28,6 +28,8 @@ class CurrentUser:
     name: str
     teacher_id: str | None
     student_id: str | None
+    # 簽發 JWT 當下的 UserAccount.token_version；只放在 JWT（ver），不回傳給前端
+    token_version: int = 0
 
     def to_public(self) -> dict[str, Any]:
         """回傳給前端的格式（sub 為字串，與 JWT 的 sub 一致）"""
@@ -42,11 +44,12 @@ class CurrentUser:
 
 
 def create_token(user: CurrentUser) -> str:
-    """簽發 JWT：payload 為登入者身分加上 iss（簽發者）、iat（簽發時間）、exp（到期時間）"""
+    """簽發 JWT：payload 為登入者身分加上 ver（登入狀態版本）、iss（簽發者）、iat（簽發時間）、exp（到期時間）"""
     settings = get_settings()
     now = datetime.now(UTC)
     payload = {
         **user.to_public(),
+        "ver": user.token_version,
         "iss": settings.jwt_issuer,
         "iat": now,
         "exp": now + timedelta(hours=settings.jwt_expires_in_hours),
@@ -75,6 +78,8 @@ def decode_token(token: str) -> CurrentUser:
         name=payload.get("name", ""),
         teacher_id=payload.get("teacher_id"),
         student_id=payload.get("student_id"),
+        # 加入 ver 之前簽發的 JWT 沒有此欄位，視為版本 0（與既有帳號的預設值一致）
+        token_version=payload.get("ver", 0),
     )
 
 

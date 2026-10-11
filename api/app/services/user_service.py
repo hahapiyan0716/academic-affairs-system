@@ -6,7 +6,7 @@ from app.errors import BadRequestError, NotFoundError, UnprocessableError
 from app.models import Department, Role, Student, StudentStatus, Teacher, UserAccount
 from app.repositories import course_repository, student_repository, teacher_repository, user_repository
 from app.schemas.user_schema import StudentCreateIn, TeacherCreateIn, UserCreateIn, UserUpdateIn
-from app.services.auth_service import hash_password
+from app.services.auth_service import hash_password, set_password
 
 
 def _get(db: Session, user_id: int) -> UserAccount:
@@ -42,12 +42,17 @@ def update_user(db: Session, admin_id: int, user_id: int, data: UserUpdateIn) ->
     # 防止管理員把自己鎖在系統外
     if data.is_active is False and user_id == admin_id:
         raise BadRequestError("不可停用自己的帳號")
+    # 重設不需要目前的密碼；自己的密碼必須走 POST /api/auth/password 驗證目前密碼，
+    # 否則借用管理員未登出裝置的人可以直接改掉管理員密碼
+    if data.password is not None and user_id == admin_id:
+        raise BadRequestError("請使用「修改密碼」變更自己的密碼")
 
     user = _get(db, user_id)
     if data.is_active is not None:
         user.is_active = data.is_active
     if data.password is not None:
-        user.password_hash = hash_password(data.password)
+        # 同時讓該帳號所有裝置上的登入失效
+        set_password(user, data.password)
     db.commit()
     return user
 

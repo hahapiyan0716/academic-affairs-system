@@ -28,3 +28,11 @@ class LoginIn(BaseModel):
     username: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=30)]
     # 登入時不套用 Password 的規則：超長密碼一律視為「帳號或密碼錯誤」，不透露規則
     password: str = Field(min_length=1, max_length=100)
+
+
+class PasswordChangeIn(BaseModel):
+    """POST /api/auth/password：登入者修改自己的密碼"""
+
+    # 必須提供目前的密碼，避免他人借用未登出的裝置直接改掉密碼、奪走帳號
+    current_password: str = Field(min_length=1, max_length=100)
+    new_password: Password

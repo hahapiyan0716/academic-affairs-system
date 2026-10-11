@@ -149,6 +149,9 @@ class UserAccount(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=TRUE)  # 停用的帳號無法登入
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=NOW)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # 登入狀態的版本：JWT 帶有簽發當下的版本（ver），兩者不同即視為失效。
+    # 修改或重設密碼時加 1，讓所有裝置上既有的登入立即失效
+    token_version: Mapped[int] = mapped_column(Integer, server_default=text("0"))
 
     teacher: Mapped["Teacher | None"] = relationship(back_populates="user")
     student: Mapped["Student | None"] = relationship(back_populates="user")

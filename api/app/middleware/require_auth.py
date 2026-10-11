@@ -22,13 +22,13 @@ def get_current_user(
 ) -> CurrentUser:
     """
     從 cookie 取出 JWT 並還原登入者；參數名稱 access_token 即 cookie 名稱。
-    JWT 驗證通過後再查一次帳號是否仍啟用：停用帳號必須立即失效，不能等 JWT 過期。
+    JWT 驗證通過後再查一次帳號狀態：停用帳號、變更過密碼的舊登入都必須立即失效，不能等 JWT 過期。
     同一個請求內 FastAPI 會快取依賴結果，這裡的 db 與路由拿到的是同一個 Session。
     """
     if not access_token:
         raise UnauthorizedError("尚未登入")
     user = decode_token(access_token)
-    auth_service.ensure_active(db, user.user_id)
+    auth_service.ensure_session_valid(db, user)
     return user
 
 

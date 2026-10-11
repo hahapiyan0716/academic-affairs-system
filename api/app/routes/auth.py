@@ -1,4 +1,4 @@
-"""認證 API：登入（簽發 JWT 並寫入 httpOnly cookie）、登出、目前使用者"""
+"""認證 API：登入（簽發 JWT 並寫入 httpOnly cookie）、登出、目前使用者、修改自己的密碼"""
 
 from typing import Annotated
 
@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.middleware.rate_limit import client_ip, login_limiter
+from app.middleware.rate_limit import client_ip, login_limiter, password_limiter
 from app.middleware.require_auth import AnyUser
-from app.schemas.auth_schema import LoginIn
+from app.schemas.auth_schema import LoginIn, PasswordChangeIn
 from app.services import auth_service
 from app.session import clear_session_cookie, set_session_cookie
 
@@ -38,3 +38,15 @@ def logout(response: Response):
 def me(user: AnyUser):
     """目前登入者（身分內容取自 JWT；帳號是否仍啟用則由 AnyUser 查資料庫確認）"""
     return {"user": user.to_public()}
+
+
+@router.post("/password", status_code=status.HTTP_204_NO_CONTENT)
+def change_password(body: PasswordChangeIn, user: AnyUser, response: Response, db: DB):
+    """
+    修改自己的密碼（所有角色皆可）。成功後其他裝置上的登入全部失效；
+    目前這台裝置改發新版本的 cookie，因此不會被登出
+    """
+    # 以帳號為單位限流，放在驗證目前密碼之前：被擋下的請求不會進行 bcrypt 運算
+    password_limiter.check(f"user:{user.user_id}")
+    updated = auth_service.change_password(db, user.user_id, body.current_password, body.new_password)
+    set_session_cookie(response, updated)

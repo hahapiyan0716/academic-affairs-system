@@ -29,11 +29,12 @@ def client_ip(request: Request) -> str:
 
 
 class RateLimiter:
-    """每個 key（IP）保留一個時間戳佇列，只計算最近 window_seconds 秒內的請求"""
+    """每個 key（IP 或帳號）保留一個時間戳佇列，只計算最近 window_seconds 秒內的請求"""
 
-    def __init__(self, limit: int, window_seconds: float) -> None:
+    def __init__(self, limit: int, window_seconds: float, message: str) -> None:
         self.limit = limit
         self.window = window_seconds
+        self.message = message  # 超過上限時回傳給使用者的訊息
         self._hits: dict[str, deque[float]] = defaultdict(deque)
         # FastAPI 的同步路由在 thread pool 中執行，多個請求可能同時修改同一個佇列
         self._lock = threading.Lock()
@@ -50,7 +51,7 @@ class RateLimiter:
             if len(hits) >= self.limit:
                 # 等到最舊的一筆滑出時間窗，才會空出名額
                 retry_after = int(self.window - (now - hits[0])) + 1
-                raise TooManyRequestsError("登入嘗試次數過多，請稍後再試", retry_after)
+                raise TooManyRequestsError(self.message, retry_after)
             hits.append(now)
 
     def reset(self) -> None:
@@ -60,4 +61,6 @@ class RateLimiter:
 
 
 # 同一 IP 每 15 分鐘最多 20 次登入嘗試，降低暴力破解風險
-login_limiter = RateLimiter(limit=20, window_seconds=15 * 60)
+login_limiter = RateLimiter(limit=20, window_seconds=15 * 60, message="登入嘗試次數過多，請稍後再試")
+# 同一帳號每 15 分鐘最多 10 次修改密碼：避免取得登入狀態的人藉此暴力猜測目前的密碼
+password_limiter = RateLimiter(limit=10, window_seconds=15 * 60, message="修改密碼嘗試次數過多，請稍後再試")

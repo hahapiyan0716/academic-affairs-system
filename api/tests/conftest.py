@@ -14,7 +14,7 @@ from sqlalchemy import delete, select, text
 from app.config import get_settings
 from app.db import SessionLocal
 from app.main import app
-from app.middleware.rate_limit import login_limiter
+from app.middleware.rate_limit import login_limiter, password_limiter
 from app.session import CurrentUser, create_token
 from app.models import (
     Enrollment,
@@ -112,9 +112,10 @@ def make_token(username: str, role: str, *, teacher_id: str | None = None, stude
 
 
 @pytest.fixture(autouse=True)
-def _reset_login_limiter() -> None:
-    """登入限流的計數存在記憶體中，每個測試前清空，避免測試之間互相影響"""
+def _reset_rate_limiters() -> None:
+    """登入與修改密碼的限流計數存在記憶體中，每個測試前清空，避免測試之間互相影響"""
     login_limiter.reset()
+    password_limiter.reset()
 
 
 @pytest.fixture
