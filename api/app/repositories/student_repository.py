@@ -45,7 +45,10 @@ def lock(db: Session, student_id: str) -> Student | None:
 
 
 def add(db: Session, student: Student) -> None:
-    """加入 Session；實際寫入在 service commit 時"""
+    """
+    加入 Session，這個 student 物件註冊到當前 Session 的追蹤清單中（狀態變為 Pending）
+    實際寫入在 service commit 時
+    """
     db.add(student)
 
 
