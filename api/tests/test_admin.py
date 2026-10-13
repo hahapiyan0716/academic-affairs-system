@@ -1,10 +1,16 @@
 """管理員 API 測試（移植自原 Express 的 vitest 測試；每個測試都會還原自己造成的變更）"""
 
+import threading
+from collections.abc import Iterator
+
 import pytest
 from sqlalchemy import delete, func, select
 
 from app.db import SessionLocal
-from app.models import Course, Student, Teacher, TeacherPermissionLog, UserAccount
+from app.errors import AppError
+from app.models import Course, Semester, SemesterStatus, Student, Teacher, TeacherPermissionLog, UserAccount
+from app.schemas.semester_schema import SemesterUpdateIn
+from app.services.semester_service import update_semester
 
 
 def test_non_admin_forbidden(client_as):
@@ -126,6 +132,99 @@ def test_update_course_fields_keeps_existing(client_as):
         assert sorted(res.json()["fields"]) == sorted([*original, "測試領域"])
     finally:
         assert admin.patch("/api/admin/courses/A0002", json={"fields": original}).status_code == 200
+
+
+# 學期狀態測試專用的暫時學期（conftest 的 9991 給選課與開課測試使用）
+EXTRA_SEMESTERS = ("9992", "9993")
+
+
+def _delete_extra_semesters() -> None:
+    with SessionLocal() as db:
+        db.execute(delete(Semester).where(Semester.semester_id.in_(EXTRA_SEMESTERS)))
+        db.commit()
+
+
+@pytest.fixture
+def enrolling_semester() -> Iterator[str]:
+    """
+    建立規劃中的暫時學期 9992、9993，回傳種子資料中唯一選課中的學期代碼（1151）。
+    結束時刪除暫時學期，並直接寫資料庫把該學期還原為選課中（不經 API，不受學期規則影響）
+    """
+    _delete_extra_semesters()  # 上次測試若中途被中斷，可能留下殘餘資料
+    with SessionLocal() as db:
+        enrolling = db.scalars(select(Semester.semester_id).where(Semester.status == SemesterStatus.Enrolling)).all()
+        assert len(enrolling) == 1, f"種子資料應剛好有一個選課中的學期：{enrolling}"
+        db.add_all(Semester(semester_id=s, acad_year=int(s[:3]), term=int(s[3])) for s in EXTRA_SEMESTERS)
+        db.commit()
+    try:
+        yield enrolling[0]
+    finally:
+        _delete_extra_semesters()
+        with SessionLocal() as db:
+            db.get_one(Semester, enrolling[0]).status = SemesterStatus.Enrolling
+            db.commit()
+
+
+def test_second_enrolling_semester_rejected(client_as, enrolling_semester):
+    """已有學期在選課中時，不可再把另一個學期改為選課中，且狀態不會被寫入"""
+    res = client_as("admin", role="Admin").patch("/api/admin/semesters/9992", json={"status": "Enrolling"})
+    assert res.status_code == 409
+    assert res.json()["detail"] == f"已有其他學期（{enrolling_semester}）在選課中，請先調整該學期的狀態"
+    with SessionLocal() as db:
+        assert db.get_one(Semester, "9992").status == SemesterStatus.Planning
+
+
+def test_enrolling_semester_can_be_set_again(client_as, enrolling_semester):
+    """本來就在選課中的學期再設一次選課中，不算與其他學期衝突"""
+    admin = client_as("admin", role="Admin")
+    res = admin.patch(f"/api/admin/semesters/{enrolling_semester}", json={"status": "Enrolling"})
+    assert res.status_code == 200
+
+
+def test_enrolling_allowed_after_closing_other(client_as, enrolling_semester):
+    """先把原本選課中的學期改為上課中，另一個學期才能開放選課"""
+    admin = client_as("admin", role="Admin")
+    assert admin.patch(f"/api/admin/semesters/{enrolling_semester}", json={"status": "InProgress"}).status_code == 200
+    res = admin.patch("/api/admin/semesters/9992", json={"status": "Enrolling"})
+    assert res.status_code == 200
+    assert res.json()["status"] == "Enrolling"
+
+
+@pytest.mark.parametrize("round_", range(3))
+def test_concurrent_enrolling_only_one_succeeds(enrolling_semester, round_):
+    """
+    沒有學期在選課中時，兩個請求同時把不同學期改為選課中：
+    學期列的 FOR UPDATE 鎖讓兩者依序檢查，結果必須剛好一個成功、一個收到 409 的訊息
+    """
+    with SessionLocal() as db:
+        db.get_one(Semester, enrolling_semester).status = SemesterStatus.InProgress
+        db.commit()
+
+    barrier = threading.Barrier(len(EXTRA_SEMESTERS))
+    results: dict[str, str] = {}
+
+    # 每個執行緒使用自己的 Session（連線），直接呼叫 service，模擬同時進來的兩個請求
+    def worker(semester_id: str) -> None:
+        with SessionLocal() as db:
+            barrier.wait()
+            try:
+                update_semester(db, semester_id, SemesterUpdateIn(status="Enrolling"))
+                results[semester_id] = "ok"
+            except AppError as exc:
+                results[semester_id] = exc.message
+
+    threads = [threading.Thread(target=worker, args=(s,)) for s in EXTRA_SEMESTERS]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert list(results.values()).count("ok") == 1, results
+    with SessionLocal() as db:
+        count = db.scalar(
+            select(func.count()).select_from(Semester).where(Semester.status == SemesterStatus.Enrolling)
+        )
+    assert count == 1
 
 
 @pytest.mark.parametrize("path", ["/api/admin/stats", "/api/admin/semesters", "/api/admin/courses", "/api/admin/departments"])

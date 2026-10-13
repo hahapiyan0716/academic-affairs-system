@@ -3,12 +3,24 @@
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from app.models import Section, Semester
+from app.models import Section, Semester, SemesterStatus
 
 
 def get(db: Session, semester_id: str) -> Semester | None:
     """依學期代碼取得學期，不存在回傳 None"""
     return db.get(Semester, semester_id)
+
+
+def lock_all(db: Session) -> None:
+    """SELECT ... FOR UPDATE 鎖住所有學期列，讓修改學期的請求依序執行（學期表只有少數幾列）"""
+    db.execute(select(Semester.semester_id).order_by(Semester.semester_id).with_for_update()).all()
+
+
+def find_enrolling_except(db: Session, semester_id: str) -> Semester | None:
+    """指定學期以外、狀態為選課中的學期"""
+    return db.scalar(
+        select(Semester).where(Semester.status == SemesterStatus.Enrolling, Semester.semester_id != semester_id)
+    )
 
 
 def get_current(db: Session) -> Semester | None:
