@@ -61,7 +61,10 @@ def find_same_course_section_code(
 
 def find_time_conflicts(db: Session, student_id: str, section: Section) -> list[tuple[str, int, int]]:
     """
-    學生「同學期、已選上」的課程中，與目標班級時段重疊者 →（課名, 星期, 節次）
+    找出學生同學期已選上課程中，所有與目標班級重疊的時段。
+    每個重疊時段回傳一筆（既有課程名稱, 星期, 節次）；
+    同一門課若重疊多個節次，會回傳多筆。
+    →（課名, 星期, 節次）
 
     對應 SQL：
       SELECT c.course_name, mine.weekday, mine.period
@@ -100,7 +103,7 @@ def find_time_conflicts(db: Session, student_id: str, section: Section) -> list[
 
 def statuses_for_sections(db: Session, student_id: str, section_ids: list[int]) -> dict[int, EnrollmentStatus]:
     """學生在這些班級的選課狀態（含退選、落選）"""
-    if not section_ids:
+    if not section_ids:     # 可能傳入空清單，表示沒有班級要查詢；避免 SQLAlchemy 產生無效的 IN 條件
         return {}
     rows = db.execute(
         select(Enrollment.section_id, Enrollment.status).where(
@@ -125,7 +128,10 @@ def busy_slots(db: Session, student_id: str, semester_id: str) -> set[tuple[int,
 
 
 def _active_section_ids(student_id: str, semester_id: str) -> Select:
-    """子查詢：學生某學期有效選課的班級 ID（供下方課表查詢的 IN 條件使用）"""
+    """
+    子查詢：學生某學期有效選課的班級 ID（供下方課表查詢的 IN 條件使用）
+    IN 是 SQL 的「是否包含在某個集合中」判斷，相當於「其中之一」。
+    """
     return (
         select(Enrollment.section_id)
         .join(Section, Section.section_id == Enrollment.section_id)
@@ -201,7 +207,23 @@ def roster_rows(db: Session, section_id: int) -> list[dict]:
 
 
 def lock_active_for_grading(db: Session, section_id: int, student_ids: list[str]) -> dict[str, Enrollment]:
-    """登分前鎖定這批有效選課列（SELECT ... FOR UPDATE）"""
+    """登分前以 SELECT ... FOR UPDATE 鎖定這批學生的有效選課列。
+
+    每筆成績存放在由（student_id, section_id）識別的 Enrollment 資料列中。查詢只鎖定
+    指定班級、指定學生，且狀態屬於 ACTIVE_ENROLLMENT 的紀錄；兩個請求若修改同一筆
+    成績，後取得鎖者必須等待，修改不同 Enrollment 資料列時通常不會互相阻塞。
+
+    登分流程會先讀取舊分數、比較新分數、寫入 ScoreChangeLog，最後才更新 score。若沒有
+    預先鎖定，兩個請求可能同時讀到相同舊分數，後寫入者覆蓋前者，稽核紀錄也會記錯實際
+    被取代的分數。鎖定後，後續請求會等前一個 Transaction commit，再讀取最新分數，確保
+    「舊分數 → 稽核紀錄 → 新分數」一致。
+
+    UPDATE 本身雖然也會取得資料列鎖，但那時程式已經讀取並使用舊分數，因此鎖得太晚；
+    必須從最初讀取 Enrollment 時就使用 FOR UPDATE。鎖會持續到目前 Transaction commit
+    或 rollback。若請求中的學生不在回傳結果，service 會拒絕整批登分並 rollback。
+
+    回傳值以 student_id 為 key，方便 service 取得每位學生被鎖定的 Enrollment ORM 物件。
+    """
     rows = db.scalars(
         select(Enrollment)
         .where(

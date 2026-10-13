@@ -20,6 +20,8 @@ def list_all(db: Session) -> list[Semester]:
     """全部學期，新學期在前"""
     return list(db.scalars(select(Semester).order_by(Semester.semester_id.desc())))
 
+# db.scalar()：只取第一筆結果
+# db.scalars()：取得每一列的第一個結果元素(完整的 ORM 物件)，並回傳可迭代的結果集合
 
 def add(db: Session, semester: Semester) -> None:
     """加入 Session；實際寫入在 service commit 時"""
