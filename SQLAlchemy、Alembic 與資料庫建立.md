@@ -381,7 +381,105 @@ with Session(engine) as db:
 
 > 注意：以上 rollback 說明主要適用於一般資料異動（DML）。MySQL 的 `CREATE TABLE`、`ALTER TABLE` 等 DDL 會自動 commit，通常無法 rollback。
 
-### 3.3 SQLAlchemy 的 Session 不是登入的 session
+### 3.3 為什麼 `select(User)` 的第一個結果元素是完整 ORM 物件
+
+SQLAlchemy 會依照 `select(...)` 中傳入的項目，決定查詢結果每一列（`Row`）包含哪些**結果元素**。這裡的結果元素不一定等同於資料庫的一個實體欄位：傳入單一欄位時，結果元素就是該欄位的值；傳入 ORM model 類別時，結果元素則是由多個資料庫欄位組裝而成的完整 ORM 物件。
+
+#### 傳入個別欄位
+
+```python
+stmt = select(User.name, User.email)
+row = db.execute(stmt).first()
+```
+
+底層 SQL 會查詢兩個欄位：
+
+```sql
+SELECT users.name, users.email FROM users;
+```
+
+假設第一筆資料是 Alice，`row` 的內容概念上就是：
+
+```python
+("Alice", "alice@example.com")
+```
+
+- `row[0]` 是 `User.name` 的字串值 `"Alice"`。
+- `row[1]` 是 `User.email` 的字串值 `"alice@example.com"`。
+
+#### 傳入完整 ORM model
+
+```python
+stmt = select(User)
+row = db.execute(stmt).first()
+```
+
+底層 SQL 仍會展開並讀取建立 `User` 物件所需的欄位：
+
+```sql
+SELECT users.id, users.name, users.email FROM users;
+```
+
+但 SQLAlchemy ORM 會利用這些欄位建立一個 `User` 實例，所以 `row` 概念上是只含一個結果元素的 tuple：
+
+```python
+(<User id=1 name="Alice">,)
+```
+
+因此 `row[0]` 不是 `users.id`，而是完整的 `User` ORM 物件。SQLAlchemy 已替程式完成組裝，不需要手動撰寫 `User(id=row[0], name=row[1], ...)`。
+
+> 更精確地說，`User` 是 `Row` 中的一個**結果元素**，不是資料庫實體表中的單一欄位。把它口語稱為「第 0 欄」雖然容易理解，但可能讓人誤以為它只對應一個 SQL 欄位。
+
+#### 同一列可以同時包含 ORM 物件與欄位值
+
+```python
+stmt = select(User, Order.price).join(Order, Order.user_id == User.id)
+row = db.execute(stmt).first()
+```
+
+每一列會包含兩個結果元素：
+
+| 位置 | `select(...)` 中的項目 | Python 結果 |
+| --- | --- | --- |
+| `row[0]` | `User` | 完整的 `User` ORM 物件，例如 `<User id=1 name="Alice">` |
+| `row[1]` | `Order.price` | 單一欄位值，例如 `250` |
+
+整列概念上就是：
+
+```python
+(<User id=1 name="Alice">, 250)
+```
+
+#### `execute()`、`scalar()` 與 `scalars()` 的關係
+
+`execute()` 會保留每一列的完整結構；`scalar()` 與 `scalars()` 則取出每列的第一個結果元素：
+
+```python
+stmt = select(User)
+
+db.execute(stmt).first()  # (<User Alice>,)：第一列，保留 Row 結構
+db.scalar(stmt)           # <User Alice>：第一列的第一個結果元素
+db.scalars(stmt).all()    # [<User Alice>, <User Bob>]：每列的第一個結果元素
+```
+
+同一套規則也適用於欄位與運算式：
+
+```python
+db.scalar(select(User.name))  # 第一列的 name 字串
+db.scalar(select(func.count()).select_from(User))  # 計算後的數字
+```
+
+若查詢同時選取多個項目，例如 `select(User, Order.price)`，使用 `scalars()` 只會保留第一個項目 `User`，`Order.price` 會被捨棄。需要兩者時應使用 `execute()` 逐列讀取完整的 `Row`。
+
+總結：
+
+- `select(User.name)`：每列第一個結果元素是欄位值。
+- `select(User)`：每列第一個結果元素是由多個資料庫欄位組裝出的 `User` ORM 物件。
+- `select(User, Order.price)`：每列同時包含一個 `User` ORM 物件與一個數值。
+
+這正是 ORM 的便利：應用程式可以直接操作代表一筆資料的 Python 物件，而不必自行把分散的 SQL 欄位轉換成物件。
+
+### 3.4 SQLAlchemy 的 Session 不是登入的 session
 
 兩者只是剛好都叫 session，是完全不同的東西：
 
@@ -411,7 +509,7 @@ with Session(engine) as db:
 
 補充：傳統網站常說的「伺服器端 session」（伺服器記住登入狀態，cookie 裡只放一個 session ID）是 JWT 的替代方案，屬於登入那一邊。`系統架構筆記.md` §11.2 談 Token 撤銷時說的「改用伺服器端 session」指的就是這種，同樣和 SQLAlchemy 的 Session 無關。
 
-### 3.4 `Base` 與 `metadata`：所有資料表的清單
+### 3.5 `Base` 與 `metadata`：所有資料表的清單
 
 ```python
 class Base(DeclarativeBase):
@@ -422,7 +520,7 @@ class Base(DeclarativeBase):
 - `Base.metadata` 是一個記憶體中的物件，內容是「15 張資料表應該長什麼樣子」：欄位、型別、主鍵、外鍵、索引、約束。
 - **它只是描述，不會連線、不會建表。** Alembic 的 `env.py` 用 `target_metadata = Base.metadata` 把這份描述拿去和真正的資料庫比對（§4.4）。
 
-### 3.5 一張表怎麼寫：以 `Section` 為例
+### 3.6 一張表怎麼寫：以 `Section` 為例
 
 左邊是 `models.py`，右邊是它最後在 MySQL 產生的 DDL（取自 `api/database/schema.generated.sql`）：
 
@@ -486,7 +584,7 @@ CREATE INDEX `Section_semester_id_status_idx` ON `Section` (semester_id, status)
 | `server_default="01"`                              | `DEFAULT '01'`                                                        | 預設值寫進 DDL，由資料庫產生（見下方說明）                                |
 | `server_default=NOW`                               | `DEFAULT CURRENT_TIMESTAMP`                                           | `NOW = func.current_timestamp()`                                        |
 | `_enum(SectionStatus)`                             | `ENUM('Open','Cancelled')`                                            | Python 的`StrEnum` 對應 MySQL 的 ENUM                                   |
-| `fk("Course.course_no", "Section_course_no_fkey")` | `CONSTRAINT ... FOREIGN KEY ... ON DELETE RESTRICT ON UPDATE CASCADE` | `fk()` 是本專案的輔助函式（§3.6）                                      |
+| `fk("Course.course_no", "Section_course_no_fkey")` | `CONSTRAINT ... FOREIGN KEY ... ON DELETE RESTRICT ON UPDATE CASCADE` | `fk()` 是本專案的輔助函式（§3.7）                                      |
 | `UniqueConstraint(...)`                            | `CONSTRAINT ... UNIQUE (...)`                                         | 名稱明確寫出                                                              |
 | `Index(...)`                                       | `CREATE INDEX ...`                                                    |                                                                           |
 | `CheckConstraint(...)`                             | `CONSTRAINT ... CHECK (...)`                                          | MySQL 8.0.16 起才真正強制執行                                             |
@@ -516,7 +614,7 @@ t.user = UserAccount(...)           # seed 中：指派後 flush 時自動寫入
 
 真正在資料庫中建立關聯的是外鍵（`fk(...)`、`ForeignKeyConstraint`）。`cascade="all, delete-orphan"` 也只是 ORM 的行為：從 `course.fields` 清單移除一個物件，flush 時 SQLAlchemy 會替你下 `DELETE`。這和外鍵上的 `ON DELETE CASCADE`（由 MySQL 執行）是兩回事。
 
-### 3.6 本專案自訂的三個輔助函式
+### 3.7 本專案自訂的三個輔助函式
 
 ```python
 def table_args(*items):
@@ -534,7 +632,7 @@ def _enum(cls):
 - `fk`：外鍵一律 `ON UPDATE CASCADE`（主鍵值被修改時，子資料的外鍵跟著更新）；`ON DELETE` 預設 `RESTRICT`（仍有子資料參照時拒絕刪除，避免誤刪）。可為 NULL 的外鍵改傳 `SET NULL`，例如 `Section.created_by`：教師被刪除時保留班級，只清空建立者。需要連帶刪除時才傳 `ondelete="CASCADE"`。
 - `_enum`：`values_callable` 讓資料庫存列舉的**值**（`"Open"`），而不是成員名稱。`validate_strings=True` 讓錯誤的字串在 Python 端就被擋下。
 
-### 3.7 View 也寫成類別，但不由 SQLAlchemy 建立
+### 3.8 View 也寫成類別，但不由 SQLAlchemy 建立
 
 ```python
 class SectionDetailView(Base):
@@ -548,7 +646,7 @@ class SectionDetailView(Base):
 - View 真正的定義是 migration 中手寫的 `CREATE VIEW ... AS SELECT ...`（`0001_init.py`、`0002_field_names.py`）。
 - `info={"is_view": True}` 是給 Alembic 看的標記：比對時略過它，否則 Alembic 會以為「models 有一張叫 `v_section_detail` 的表，資料庫沒有」，然後產生 `CREATE TABLE`（見 §4.6 的 `include_object`）。
 
-### 3.8 為什麼不用 `Base.metadata.create_all()`
+### 3.9 為什麼不用 `Base.metadata.create_all()`
 
 SQLAlchemy 本身有一個 `create_all()`，可以依 models 直接建表。本專案**禁止使用**，原因：
 
@@ -770,6 +868,6 @@ def downgrade() -> None:
 | DB-API 2.0                        | Python 規範的資料庫驅動標準介面（PEP 249）                                                  |
 | Reflection（反射）                | 從現有資料庫讀回結構，變成 SQLAlchemy 的`Table` 物件                                      |
 | `MetaData`                      | 一組`Table` 定義的集合；`Base.metadata` 收集了所有 models                               |
-| Session                           | ORM 的工作單位：追蹤物件的變更，在 flush／commit 時轉成 SQL（不是登入的 session，見 §3.3） |
+| Session                           | ORM 的工作單位：追蹤物件的變更，在 flush／commit 時轉成 SQL（不是登入的 session，見 §3.4） |
 | flush                             | 把 Session 中尚未送出的變更送到資料庫（仍在交易中，尚未 commit）                            |
 | Single Source of Truth            | 唯一來源；本專案中資料庫結構的唯一來源是`models.py`                                       |
