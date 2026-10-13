@@ -3,25 +3,23 @@
 from collections import defaultdict
 from decimal import Decimal
 
+from app.models import (ACTIVE_ENROLLMENT, CurriculumField, Enrollment,
+                        Section, SectionDetailView, SectionSchedule,
+                        SectionTeacher)
 from sqlalchemy import ColumnElement, exists, func, or_, select
 from sqlalchemy.orm import Session
-
-from app.models import (
-    ACTIVE_ENROLLMENT,
-    CurriculumField,
-    Enrollment,
-    Section,
-    SectionDetailView,
-    SectionSchedule,
-    SectionTeacher,
-)
 
 
 def _has_field(field: str) -> ColumnElement[bool]:
     """
-    班級的課程屬於指定領域（精確比對，不用 field_names LIKE，避免「資料」誤中「資料科學」）。對應 SQL：
+    班級的課程屬於指定領域（精確比對，不用 field_names LIKE，避免「資料」誤中「資料科學」）。
+    對應 SQL：
       EXISTS (SELECT 1 FROM CurriculumField cf WHERE cf.course_no = v.course_no AND cf.field_name = :field)
+        SELECT 1 沒有意思，只是為了符合 EXISTS 的語法要求，EXISTS 只要子查詢有找到資料就回傳 True
     """
+    # 因為 LIKE(意思是模糊比對，找到) 會造成「資料」誤中「資料科學」，所以改用 EXISTS + 精確比對
+    # LIKE 用於字串模式比對，某個欄位的文字是否符合指定模式，例如 '資料%' 會找到所有以「資料」開頭的字串
+    # EXISTS，關聯資料存在性判斷，判斷子查詢是否至少找到一筆資料
     return exists().where(
         CurriculumField.course_no == SectionDetailView.course_no, CurriculumField.field_name == field
     )

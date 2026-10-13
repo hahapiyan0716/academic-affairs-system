@@ -214,6 +214,110 @@ WHERE `Student`.student_id = %s FOR UPDATE
 
 models 類別本身就是 Python 類別，`Student`、`Student.student_id` 可以直接用在查詢裡，型別也直接寫在 `Mapped[...]` 中，不需要另外產生程式碼。
 
+#### Session 與 Transaction（交易）的差別
+
+兩者不是同一個東西，可以先這樣理解：
+
+- **Session 是操作資料庫的工作空間**：負責執行 SQL、追蹤 ORM 物件的狀態，並維護 Identity Map。
+- **Transaction 是工作空間裡的一次完整操作**：其中的資料異動必須一起成功或一起取消。
+
+例如轉帳時，「從 A 扣款」和「替 B 加款」必須放在同一個 Transaction。若只完成其中一步，資料就會不一致。
+
+| 項目 | Session | Transaction |
+| --- | --- | --- |
+| 主要用途 | 管理 ORM 物件、執行 SQL、維護 Identity Map | 保證一組資料庫操作一起成功或一起失敗 |
+| 開始時機 | 建立 `Session` 物件時 | SQLAlchemy 通常在第一次執行 SQL 時自動開始（autobegin） |
+| 結束方式 | `db.close()`，或離開 Session 的 `with` 區塊 | `commit()` 確認變更，或 `rollback()` 取消尚未提交的變更 |
+| 彼此關係 | 同一個 Session 可以先後執行多個 Transaction | 一個 Transaction 只代表這一次要一起處理的操作 |
+
+```text
+建立 Session
+│
+├─ Transaction ①：查詢學生 → 修改學生 → commit（正式保存）
+│
+├─ Transaction ②：查詢教師 → 發生錯誤 → rollback（取消變更）
+│
+└─ 關閉 Session
+```
+
+可以用 `with db.begin()` 明確標示一個 Transaction 的範圍：
+
+```python
+with db.begin():
+    student = db.get(Student, "S001")
+    student.status = StudentStatus.Suspended
+
+# 正常離開 with：自動 commit
+# 區塊內發生例外：自動 rollback
+```
+
+`db.close()` 是關閉 Session，不等於 commit。若關閉時還有未結束的 Transaction，SQLAlchemy 會 rollback，不會自動替程式保存尚未提交的變更。
+
+簡單比喻：Session 是辦公桌，Transaction 是桌上正在處理的一份案件；`commit` 是確認送出，`rollback` 是取消案件，`close` 是清理並關閉整張辦公桌。
+
+#### 悲觀鎖（Pessimistic Locking）與 `FOR UPDATE`
+
+悲觀鎖的想法是：「預期同一筆資料可能同時被多人修改，所以先鎖定，再檢查及修改。」它主要用來避免 Race Condition（競態條件）、超賣與 Lost Update（遺失更新）。
+
+「悲觀」不是指情緒，而是一種保守假設：程式先假設「我處理資料的期間，很可能有人也要修改它」。因此，在執行「讀取 → 判斷 → 修改」之前，會先請資料庫暫時鎖住目標資料列：
+
+- 目前的 Transaction 可以繼續檢查及修改這筆資料。
+- 其他 Transaction 若也要修改、刪除或鎖定同一筆資料，通常必須等待。
+- 目前的 Transaction `commit()` 或 `rollback()` 後，資料庫就會釋放鎖。
+
+簡單比喻：只剩一張選課申請表時，A 先拿走並在櫃檯處理；B 不能同時拿同一張表，只能等 A 完成或取消。這個「先保留給一個人處理」的做法，就是悲觀鎖。
+
+悲觀鎖是**資料庫的併發控制機制**，不是 Python 的 Thread Lock，也不是 Session 自動提供的功能。Session 負責執行查詢；程式必須透過 `FOR UPDATE` 明確要求資料庫加鎖，而鎖實際上屬於目前的 Transaction。
+
+| 查詢方式 | 意義 |
+| --- | --- |
+| 一般 `SELECT` | 只讀取資料，不先保留修改權；兩個請求可能同時讀到相同舊值 |
+| `SELECT ... FOR UPDATE` | 讀取並鎖定目標資料列，讓需要修改同一筆資料的其他 Transaction 等待 |
+
+SQLAlchemy 的 `.with_for_update()` 會產生概念上如下的 SQL：
+
+```sql
+SELECT *
+FROM Student
+WHERE student_id = :student_id
+FOR UPDATE;
+```
+
+- `SELECT *`：讀取符合條件資料列的全部欄位。
+- `FROM Student`：從 `Student` 資料表查詢。
+- `WHERE student_id = :student_id`：只找指定學號；`:student_id` 是稍後由 SQLAlchemy 安全帶入的參數，不是固定文字。
+- `FOR UPDATE`：讀取資料的同時鎖定符合條件的資料列，表示目前 Transaction 接下來準備修改它。
+
+以課程只剩一個名額為例：
+
+1. Transaction A 使用 `FOR UPDATE` 讀取班級，取得該資料列的鎖，確認還有一個名額。
+2. Transaction B 也使用 `FOR UPDATE` 讀取同一個班級，但因 A 尚未結束，所以必須等待。
+3. A 建立選課紀錄並 `commit()`；資料正式保存，同時釋放鎖。
+4. B 繼續執行，讀到最新資料並發現名額已滿，因此不能再建立選課紀錄。
+
+若兩邊都先用一般 `SELECT` 查詢，就可能同時看到「剩一個名額」，接著都通過檢查，造成超收。類似情況也可能造成 Lost Update：兩個 Transaction 都依照舊值計算新值，後寫入的一方覆蓋先前結果，使其中一次業務操作沒有正確反映在資料中。
+
+`FOR UPDATE` 的鎖從查詢成功取得後開始，持續到目前 Transaction `commit()` 或 `rollback()` 為止：
+
+```text
+Transaction 開始
+    ↓
+SELECT ... FOR UPDATE（取得資料列鎖）
+    ↓
+檢查條件並修改資料
+    ↓
+commit 或 rollback（Transaction 結束並釋放鎖）
+```
+
+使用悲觀鎖時要注意：
+
+- **必須放在同一個 Transaction 中**：如果 SQL 執行完就立刻提交，鎖也會立刻釋放，無法保護後續的檢查與修改。
+- **一般 `SELECT` 通常仍可讀取**：其他 Transaction 通常是修改、刪除或再次以 `FOR UPDATE` 鎖定同一筆資料時才需要等待；實際行為仍受資料庫與隔離等級影響。
+- **查詢條件應命中索引**：例如 `student_id` 是主鍵，資料庫能準確找到並鎖定目標。若沒有適當索引，InnoDB 可能掃描並鎖住大量索引紀錄或範圍，造成近似鎖住整張表的效能問題，但不代表一定會直接使用 Table Lock。
+- **Transaction 要盡量短**：取得鎖後不要執行耗時的網路請求或等待使用者輸入，否則其他請求會長時間卡住。
+- **所有流程使用一致的加鎖順序**：例如都先鎖學生、再鎖班級，降低兩個 Transaction 互相等待而產生 Deadlock（死結）的風險。
+- **仍要處理 Deadlock 或逾時**：資料庫偵測到 Deadlock 時，通常會中止其中一個 Transaction；程式必須 rollback，並視業務需求決定是否重試。
+
 #### `add()`、`flush()`、`commit()` 與 `rollback()`
 
 Transaction（交易）是一組要一起成功或一起取消的資料庫操作。例如建立使用者時，可能同時新增帳號、回填教師的 `user_id`、寫入稽核紀錄；若中途失敗，不應只留下其中一部分。
