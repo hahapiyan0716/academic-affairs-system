@@ -97,6 +97,8 @@ npx next build
   - 加退選：`Enrolling`
   - 登分：`InProgress`／`Finished`
 - 「目前學期」由 `Semester.is_current` 決定，全表只能有一筆為 true（`semester_service.update_semester` 在同一交易內維護）。
+- 學期狀態可任意切換，但**同一時間只能有一個學期為 `Enrolling`**：`update_semester` 先以 `semester_repository.lock_all` 鎖住所有學期列再檢查，否則兩個同時進來的修改都會通過檢查。只在應用層檢查，因為測試會直接在資料庫建立選課中的測試學期 `9991`，與種子的 `1151` 並存。
+- 選課中的學期不一定是目前學期（例如本學期上課中、下學期先開放選課）。學生加退選頁（`web/app/student/page.tsx`）顯示選課中的學期，沒有時才瀏覽目前學期；加選 API 只看班級所屬學期的狀態，不看 `is_current`。
 - 「有效選課」= status 為 `Selected` 或 `Manual`（`models.ACTIVE_ENROLLMENT`）。人數、課表、成績單只計算這兩種。`Registered`、`NotSelected` 是為未來「登記＋抽籤」預留的狀態。
 - **選課併發控制**（`services/enrollment_service.py`）：
   - 依「學生列 → 班級列」的固定順序鎖定（`student_repository.lock` → `section_repository.lock`），避免 Deadlock。鎖定順序只由 service 決定，不要在 repository 裡合併或調換。
@@ -112,6 +114,7 @@ npx next build
 - 測試直接連 `.env` 設定的開發資料庫，新增測試時要維持隔離原則，不可留下資料：
   - 選課與開課測試只在測試學期 `9991` 中建立與刪除資料（`tests/conftest.py`）。
   - 管理員測試在 `finally` 中還原它改動的資料。
+  - 學期狀態測試使用暫時學期 `9992`、`9993`（`test_admin.py` 的 `enrolling_semester` fixture），結束時刪除，並把種子中選課中的學期還原。
   - `conftest.py` 的 `client_as(username, role=...)` 以 `app/session.py` 的 `create_token` 簽發 cookie，不必每次都走登入流程。
 
 ### 前端（`web/`）

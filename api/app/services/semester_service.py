@@ -2,7 +2,7 @@
 
 from sqlalchemy.orm import Session
 
-from app.errors import NotFoundError
+from app.errors import ConflictError, NotFoundError
 from app.models import Semester, SemesterStatus
 from app.repositories import semester_repository
 from app.schemas.semester_schema import AdminSemesterOut, SemesterCreateIn, SemesterOut, SemesterUpdateIn
@@ -42,12 +42,23 @@ def create_semester(db: Session, data: SemesterCreateIn) -> AdminSemesterOut:
 
 
 def update_semester(db: Session, semester_id: str, data: SemesterUpdateIn) -> AdminSemesterOut:
-    """修改學期狀態及／或設為目前學期；狀態可任意切換，不限定只能往後推進"""
+    """
+    修改學期狀態及／或設為目前學期。狀態可任意切換，不限定只能往後推進，
+    但同一時間只能有一個學期在選課中：加退選頁顯示的就是那個學期
+    """
+    # 先鎖住所有學期列：兩個修改同時進來時，後到的要等前一個 commit 後才檢查，
+    # 才不會兩個請求都看到「沒有其他學期在選課中」而同時通過
+    semester_repository.lock_all(db)
     semester = semester_repository.get(db, semester_id)
     if semester is None:
         raise NotFoundError("找不到學期")
     if data.status is not None:
-        semester.status = SemesterStatus(data.status)
+        status = SemesterStatus(data.status)
+        if status == SemesterStatus.Enrolling:
+            other = semester_repository.find_enrolling_except(db, semester_id)
+            if other is not None:
+                raise ConflictError(f"已有其他學期（{other.semester_id}）在選課中，請先調整該學期的狀態")
+        semester.status = status
     if data.is_current:
         # 「目前學期」只能有一個：同一個交易內先清除其他學期的旗標，再設定本學期
         semester_repository.clear_current_except(db, semester_id)

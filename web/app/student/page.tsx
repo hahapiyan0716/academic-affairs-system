@@ -25,7 +25,11 @@ import type { BrowseSection, Semester } from "@/types";
 // 有效選課狀態，與後端 models.ACTIVE_ENROLLMENT 一致
 const ACTIVE = ["Selected", "Manual"];
 
-/** 學生加退選：瀏覽目前學期的開放班級，即時加選或退選 */
+/**
+ * 學生加退選：瀏覽選課中學期的開放班級，即時加選或退選。
+ * 選課中的學期不一定是目前學期（例如本學期上課中、下學期先開放選課），後端保證最多只有一個；
+ * 沒有學期在選課中時改為瀏覽目前學期
+ */
 export default function EnrollPage() {
   const [q, setQ] = useState("");
   // 停止輸入後才送出搜尋，避免每打一個字就查一次
@@ -33,11 +37,15 @@ export default function EnrollPage() {
   // 領域為下拉選單，選定即查詢，不需延遲
   const [field, setField] = useState("");
   const { data: semesters } = useApiQuery<Semester[]>("/api/semesters");
-  const current = semesters?.find((s) => s.is_current);
-  // 不帶 semester_id 時，後端預設查詢目前學期
-  const { data, error, isPending } = useApiQuery<BrowseSection[]>("/api/sections", { q: keyword, field });
+  const semester = semesters?.find((s) => s.status === "Enrolling") ?? semesters?.find((s) => s.is_current);
+  // 學期清單載入前不查詢（path 為 null），以免先查到預設的目前學期、再換成選課中的學期
+  const { data, error, isPending } = useApiQuery<BrowseSection[]>(semesters ? "/api/sections" : null, {
+    semester_id: semester?.semester_id ?? "",
+    q: keyword,
+    field,
+  });
   // 只用來決定按鈕是否可按；真正的限制由後端檢查
-  const enrolling = current?.status === "Enrolling";
+  const enrolling = semester?.status === "Enrolling";
   const invalidate = useInvalidate();
 
   /** 加選（withdraw = false）或退選（withdraw = true） */
@@ -62,10 +70,10 @@ export default function EnrollPage() {
       <PageHeader
         title="加退選"
         description={
-          current ? `${semesterLabel(current.semester_id)}・即時先搶先贏，加選當下即確定是否選上` : undefined
+          semester ? `${semesterLabel(semester.semester_id)}・即時先搶先贏，加選當下即確定是否選上` : undefined
         }
       >
-        {current && <SemesterStatusBadge status={current.status} />}
+        {semester && <SemesterStatusBadge status={semester.status} />}
         <FieldSelect value={field} onChange={setField} />
         <Input
           placeholder="搜尋課名、課號、教師"
@@ -74,9 +82,9 @@ export default function EnrollPage() {
           className="w-56"
         />
       </PageHeader>
-      {current && !enrolling && (
+      {semester && !enrolling && (
         <div className="mb-4 rounded-lg border bg-background px-4 py-3 text-sm text-muted-foreground">
-          目前學期不在選課期間，僅供瀏覽。
+          目前沒有開放加退選的學期，以下為目前學期的開課，僅供瀏覽。
         </div>
       )}
       <Card>
