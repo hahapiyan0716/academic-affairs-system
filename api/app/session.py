@@ -15,8 +15,11 @@ from fastapi import Response
 from app.config import get_settings
 from app.errors import UnauthorizedError
 
-# 將登入角色的靜態型別限制為三種合法字串，讓 type checker 能在開發階段發現錯字或無效角色。
-# Literal 本身不會進行執行期驗證；JWT 解碼後的角色檢查由下方 decode_token() 負責。
+# Role 是型別別名：把 Literal["Admin", "Teacher", "Student"] 取名為 Role，
+# CurrentUser、require_role() 等處寫 role: Role 即可，不必重複列出三個值。
+# Literal 表示「值只能是列出的其中之一」，type checker（Pylance）會在開發階段抓出錯字或無效角色；
+# 但它不做執行期驗證（CurrentUser 是 dataclass，不會檢查）。執行時的保障是：decode_token() 驗證 JWT 簽章，
+# 確保 role 是本系統簽發、未被竄改；require_role() 再檢查該角色能否呼叫該 API。
 Role = Literal["Admin", "Teacher", "Student"]
 
 # frozen=True 禁止 CurrentUser 建立後重新指定欄位，避免請求處理期間意外改動已驗證的登入身分。
