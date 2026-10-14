@@ -17,11 +17,16 @@ def _password_bytes(value: str) -> str:
 
 
 # 設定密碼（建立帳號、重設密碼）時的規則：至少 8 字元，且不超過 72 bytes
+# Annotated 是指定欄位的型別與額外的限制條件
+# Field 是 pydantic 提供的函式，用來設定欄位的驗證規則
+# AfterValidator 是 pydantic 提供的函式，用來在欄位驗證後執行額外的驗證邏輯
+# StringConstraints 是 pydantic 提供的函式，用來設定字串欄位的限制條件
 Password = Annotated[str, Field(min_length=8, max_length=72), AfterValidator(_password_bytes)]
 # 建立帳號時的帳號名稱規則
 Username = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=30)]
 
-
+# BaseModel 是 Pydantic 的基底類別，用來定義及驗證 API 的請求與回應資料；
+# app/models.py 的資料表則使用 SQLAlchemy 的 Declarative Base，兩者用途不同。
 class LoginIn(BaseModel):
     """POST /api/auth/login 的請求內容"""
 

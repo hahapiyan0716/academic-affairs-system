@@ -16,6 +16,9 @@ from app.schemas.user_schema import StudentStatusIn, StudentStatusOut, UserCreat
 from app.services import course_service, semester_service, stats_service, teacher_service, user_service
 
 # 整個 router 掛上 Admin 檢查：任何 /api/admin/* 都不可能漏掉權限驗證
+# prefix="/api/admin" 替這個 router 裡的所有路由自動加上網址前綴。
+# tags=["admin"] 把這組 API 歸類到 admin 標籤下，主要用於 Swagger API 文件。
+# dependencies=[...] 指定這個 router 中每個端點都必須執行的共用 Dependency，意思是呼叫任何 /api/admin/... API 前，都先執行管理員權限檢查。
 router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_role("Admin"))])
 
 # 路由參數宣告為 DB 型別，FastAPI 就會注入一個每請求專屬的 Session（見 app/db.py 的 get_db）
@@ -26,12 +29,13 @@ DB = Annotated[Session, Depends(get_db)]
 # 帳號
 # ---------------------------------------------------------------------
 
-
+# response_model=list[UserOut] 會讓 FastAPI 透過 Pydantic 驗證與序列化回應，
+# 將 SQLAlchemy ORM 物件轉成 UserOut 串列，並只輸出 UserOut 宣告的欄位；JSON Schema 則用於產生 API 文件。
 @router.get("/users", response_model=list[UserOut])
 def list_users(db: DB, role: Role | None = None, q: Annotated[str | None, Query(max_length=30)] = None):
     """帳號列表，可依角色與關鍵字（帳號、姓名）篩選"""
-    return user_service.list_users(db, role, q)
-
+    return user_service.list_users(db, role, q)     # q 是可選的關鍵字參數，限制長度避免過長字串造成昂貴的 LIKE 查詢
+# 例如當前端呼叫 GET /api/admin/users?role=Teacher&q=王小明 時，FastAPI 會把 role 與 q 解析成函式參數，並傳給 list_users()。
 
 @router.post("/users", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 def create_user(body: UserCreateIn, db: DB):
