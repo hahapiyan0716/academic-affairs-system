@@ -49,7 +49,7 @@ def format_slot(weekday: int, period: int) -> str:
 
 
 def _lock_student(db: Session, student_id: str) -> Student:
-    """鎖定學生列（取鎖順序的第一步）；找不到時 404"""
+    """鎖定學生列（取鎖順序的第一步）避免同時選到同時段的課程；找不到時 404"""
     student = student_repository.lock(db, student_id)
     if student is None:
         raise NotFoundError("找不到學生資料")
@@ -57,7 +57,7 @@ def _lock_student(db: Session, student_id: str) -> Student:
 
 
 def _lock_section(db: Session, section_id: int) -> Section:
-    """鎖定班級列（取鎖順序的第二步，必須在 _lock_student 之後呼叫）；找不到時 404"""
+    """鎖定班級列（取鎖順序的第二步，必須在 _lock_student 之後呼叫）避免同時選到同一個班級造成超收；找不到時 404"""
     section = section_repository.lock(db, section_id)
     if section is None:
         raise NotFoundError("找不到開課班級")
@@ -146,7 +146,7 @@ def timetable(db: Session, student_id: str, semester_id: str | None) -> Timetabl
 
 
 def _weighted_avg(rows: list[TranscriptRow]) -> Decimal | None:
-    """學分加權平均：Σ(成績 × 學分) / Σ(學分)，只計入已有成績的課程"""
+    """學分加權平均：Σ(成績 x 學分) / Σ(學分)，只計入已有成績的課程"""
     graded = [r for r in rows if r.score is not None]
     credits = sum(r.credit for r in graded)
     if credits == 0:

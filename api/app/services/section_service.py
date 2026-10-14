@@ -180,7 +180,8 @@ def create_section(db: Session, teacher_id: str, data: SectionCreate) -> Section
         # 上面的檢查與 commit 之間，其他請求可能搶先寫入；此時由資料庫的 UNIQUE 約束擋下，
         # 依約束名稱轉成友善訊息，其他約束錯誤則往上拋給 error_handler
         db.rollback()
-        msg = str(exc.orig)
+        msg = str(exc.orig)     # IntegrityError.args[0] 會被 sqlalchemy 重新包裝成 tuple，丟給上層的 exc.orig 才是原始訊息
+                                # exc.orig.args[0] 是原始訊息的第一個元素，通常是字串，但有些資料庫會回傳 tuple，這裡直接用 str() 轉成字串
         if "uq_room_timeslot" in msg:
             raise ConflictError("教室時段已被其他班級佔用（併發開課衝突）") from None
         if "course_no_semester_id_section_code" in msg:
