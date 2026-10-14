@@ -15,7 +15,9 @@ from fastapi import Response
 from app.config import get_settings
 from app.errors import UnauthorizedError
 
-Role = Literal["Admin", "Teacher", "Student"]   # Literal 讓 mypy 能檢查 role 的值是否為這三個字串之一
+# 將登入角色的靜態型別限制為三種合法字串，讓 type checker 能在開發階段發現錯字或無效角色。
+# Literal 本身不會進行執行期驗證；JWT 解碼後的角色檢查由下方 decode_token() 負責。
+Role = Literal["Admin", "Teacher", "Student"]
 
 # frozen=True 禁止 CurrentUser 建立後重新指定欄位，避免請求處理期間意外改動已驗證的登入身分。
 # 它不負責防止 JWT 被竄改；JWT 的完整性由下方 decode_token() 的簽章驗證保障。
