@@ -151,7 +151,8 @@ def _weighted_avg(rows: list[TranscriptRow]) -> Decimal | None:
     credits = sum(r.credit for r in graded)
     if credits == 0:
         return None
-    total = sum((r.score or Decimal(0)) * r.credit for r in graded)
+    # 起始值給 Decimal(0)：sum 預設從 int 0 開始，型別會被推斷為 Decimal | int，相除後可能是 float
+    total = sum(((r.score or Decimal(0)) * r.credit for r in graded), Decimal(0))
     return (total / credits).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
