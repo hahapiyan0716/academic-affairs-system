@@ -45,6 +45,7 @@ def update_user(db: Session, admin_id: int, user_id: int, data: UserUpdateIn) ->
     # 管理員替其他帳號重設密碼時，不需要輸入該帳號的目前密碼。
     # 若目標是管理員自己的帳號，則必須改走 POST /api/auth/password，由該端點先驗證目前密碼；
     # 避免他人利用管理員尚未登出的裝置直接重設密碼，進而接管管理員帳號。
+    # 因此「管理帳號」頁面不允許管理員重設自己的密碼；管理員應在已登入狀態使用「修改密碼」功能。
     if data.password is not None and user_id == admin_id:
         raise BadRequestError("請使用「修改密碼」變更自己的密碼")
 

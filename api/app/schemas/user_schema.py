@@ -55,6 +55,7 @@ class StudentCreateIn(BaseModel):
 
 
 # 依 role 欄位決定要套用哪一個模型（discriminated union）
+# Field(discriminator="role") 會讓 Pydantic 根據 role 欄位的值自動選擇對應的模型
 UserCreateIn = Annotated[AdminCreateIn | TeacherCreateIn | StudentCreateIn, Field(discriminator="role")]
 
 
