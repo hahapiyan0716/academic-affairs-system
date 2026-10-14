@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     jwt_issuer: str = "academic-affairs-system"
     jwt_expires_in_hours: int = Field(default=8, gt=0)
     # Cookie 名稱與安全性設定
-    auth_cookie: str = "access_token"
+    auth_cookie: str = "access_token"   # 存放 JWT 的 cookie 名稱（cookie 的值才是 JWT：access_token=<JWT>），由瀏覽器自動帶上
     # 正式環境（HTTPS）需設為 true，Cookie 才會加上 Secure 屬性
     cookie_secure: bool = False
     # 種子帳號的初始密碼，只有 seed 指令與測試會用到

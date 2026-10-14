@@ -25,7 +25,7 @@ def enroll(user: StudentUser, db: DB, body: EnrollIn):
 
 @router.delete("/enrollments/{section_id}", response_model=EnrollmentOut)
 def withdraw(user: StudentUser, db: DB, section_id: int):
-    """退選：紀錄不刪除，狀態改為 Withdrawn"""
+    """退選：紀錄不刪除，狀態改為 Withdrawn，前端會顯示為「已退選」；只有學期為選課中、且尚未有成績時才能退選"""
     return enrollment_service.withdraw(db, student_id_of(user), section_id)
 
 

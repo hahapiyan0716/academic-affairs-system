@@ -95,17 +95,26 @@ def decode_token(token: str) -> CurrentUser:
 def set_session_cookie(response: Response, user: CurrentUser) -> None:
     """登入成功時寫入 JWT cookie；cookie 效期與 JWT 效期一致"""
     settings = get_settings()
+    # 透過 HTTP Response 的 Set-Cookie Header 寫入 cookie，前端瀏覽器會自動帶入後續請求
+    # 而且這是 httpOnly cookie，JavaScript 讀不到，降低 XSS 竊取風險。
     response.set_cookie(
-        settings.auth_cookie,
-        create_token(user),
+        # 前兩個參數是 cookie 名稱與值（會產生 Set-Cookie: access_token=<JWT>; ...），後面是屬性設定
+        settings.auth_cookie,   # cookie 名稱 "access_token"；cookie 的值才是 JWT，之後由瀏覽器自動帶上
+        create_token(user),     # 簽發 JWT：CurrentUser 轉成 payload 後簽章，回傳 JWT 字串
         max_age=settings.jwt_expires_in_hours * 3600,
         httponly=True,  # JavaScript 讀不到，防止 XSS 竊取 token
         samesite="lax",  # 跨站發起的寫入請求不會帶上 cookie，降低 CSRF 風險
+                         # 同站請求：會攜帶 cookie。
+                         # 一般跨站圖片、表單 POST 等請求：通常不攜帶 cookie。
+                         # 使用者透過連結進行頂層頁面導向的 GET：會攜帶 cookie。
         secure=settings.cookie_secure,
-        path="/",
+        path="/",   # 表示 cookie 對整個網站路徑都有效
+                    # cookie 的 path 必須與 clear_session_cookie() 相同，瀏覽器才會刪到同一個 cookie
     )
 
 
 def clear_session_cookie(response: Response) -> None:
     """登出：刪除 cookie（path 必須與寫入時相同，瀏覽器才會刪到同一個 cookie）"""
+    # 透過 HTTP Response 的 Set-Cookie Header 刪除 cookie：delete_cookie 內部呼叫 set_cookie，
+    # 送出值為空、立即過期的 cookie（Set-Cookie: access_token=""; Max-Age=0; Path=/），瀏覽器收到後即刪除
     response.delete_cookie(get_settings().auth_cookie, path="/")

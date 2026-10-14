@@ -21,6 +21,7 @@ DB = Annotated[Session, Depends(get_db)]
 def login(body: LoginIn, request: Request, response: Response, db: DB):
     """登入成功時寫入 cookie，並回傳使用者資訊供前端決定導向哪個角色首頁"""
     # 限流檢查放在驗證密碼之前：被擋下的請求不會進行 bcrypt 運算
+    # 也就是說依照「用戶端 IP」檢查登入次數是否超過限制。
     login_limiter.check(client_ip(request))
     user = auth_service.login(db, body.username, body.password)
     # 宣告 response 參數後，在其上設定的 cookie 會合併到 FastAPI 最終回傳的回應中
@@ -40,7 +41,7 @@ def me(user: AnyUser):
     return {"user": user.to_public()}
 
 
-@router.post("/password", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/password", status_code=status.HTTP_204_NO_CONTENT)   # 204 No Content 代表成功但沒有回傳資料
 def change_password(body: PasswordChangeIn, user: AnyUser, response: Response, db: DB):
     """
     修改自己的密碼（所有角色皆可）。成功後其他裝置上的登入全部失效；

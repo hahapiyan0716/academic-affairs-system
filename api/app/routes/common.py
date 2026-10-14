@@ -56,7 +56,11 @@ def list_teachers(_: AnyUser, db: DB):
 
 @router.get("/sections", response_model=list[BrowseSectionOut])
 def browse_sections(
-    user: AnyUser, db: DB, semester_id: str | None = None, q: Keyword = None, field: FieldName = None
+    user: AnyUser,
+    db: DB,
+    semester_id: str | None = None,
+    q: Keyword = None,
+    field: FieldName = None
 ):
     """瀏覽某學期（預設目前學期）的開放班級；學生會額外得到自己的選課狀態與衝堂標記"""
     return section_service.browse(db, user, semester_id, q, field)
