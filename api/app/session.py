@@ -18,6 +18,8 @@ from app.errors import UnauthorizedError
 Role = Literal["Admin", "Teacher", "Student"]
 
 
+# dataclass 適合保存 JWT 驗證後的內部資料；它會自動產生初始化與比較方法，但不會在執行期驗證欄位型別。
+# frozen=True 禁止建立後重新指定欄位，避免請求處理期間意外改動登入身分；JWT 防竄改仍由 decode_token() 驗證簽章。
 @dataclass(frozen=True)
 class CurrentUser:
     """從 JWT 解出的登入者身分；teacher_id／student_id 只有對應角色才有值"""
