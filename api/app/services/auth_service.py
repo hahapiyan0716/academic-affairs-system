@@ -22,10 +22,12 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, password_hash: str) -> bool:
     """比對明碼與雜湊是否相符"""
-    encoded = password.encode()
+    encoded = password.encode()     # encode() 會把字串轉成 bytes，bcrypt 只接受 bytes
     # bcrypt 5.x 對超過 72 bytes 的輸入直接拋出 ValueError；超長密碼一律視為錯誤
     if len(encoded) > PASSWORD_MAX_BYTES:
         return False
+    # checkpw() 從雜湊字串（格式 $2b$<cost>$<22 字元 salt><31 字元雜湊>）取出 cost factor 與 salt，
+    # 以同樣的參數雜湊明碼，再比對兩個雜湊是否相同
     return bcrypt.checkpw(encoded, password_hash.encode())
 
 
