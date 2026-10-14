@@ -15,14 +15,21 @@ from fastapi import Response
 from app.config import get_settings
 from app.errors import UnauthorizedError
 
+# Role 是型別別名：把 Literal["Admin", "Teacher", "Student"] 取名為 Role，
+# CurrentUser、require_role() 等處寫 role: Role 即可，不必重複列出三個值。
+# Literal 表示「值只能是列出的其中之一」，type checker（Pylance）會在開發階段抓出錯字或無效角色；
+# 但它不做執行期驗證（CurrentUser 是 dataclass，不會檢查）。執行時的保障是：decode_token() 驗證 JWT 簽章，
+# 確保 role 是本系統簽發、未被竄改；require_role() 再檢查該角色能否呼叫該 API。
 Role = Literal["Admin", "Teacher", "Student"]
 
 
 # dataclass 適合保存 JWT 驗證後的內部資料；它會自動產生初始化與比較方法，但不會在執行期驗證欄位型別。
-# frozen=True 禁止建立後重新指定欄位，避免請求處理期間意外改動登入身分；JWT 防竄改仍由 decode_token() 驗證簽章。
+# frozen=True 禁止 CurrentUser 建立後重新指定欄位，避免請求處理期間意外改動已驗證的登入身分。
+# 它不負責防止 JWT 被竄改；JWT 的完整性由下方 decode_token() 的簽章驗證保障。
+# 若執行 user.username = "root"，dataclasses 會拋出 FrozenInstanceError。
 @dataclass(frozen=True)
 class CurrentUser:
-    """從 JWT 解出的登入者身分；teacher_id／student_id 只有對應角色才有值"""
+    """從 JWT 解出的登入者身分；teacher_id / student_id 只有對應角色才有值"""
 
     user_id: int
     username: str

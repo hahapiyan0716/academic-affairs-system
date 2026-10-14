@@ -19,6 +19,49 @@ def test_non_admin_forbidden(client_as):
         assert client_as(username, role=role).get("/api/admin/users").status_code == 403
 
 
+def test_list_users_searches_student_and_teacher_ids(client_as):
+    """帳號搜尋可用學號或教師代號命中，且不依賴登入帳號剛好與代號相同"""
+    admin = client_as("admin", role="Admin")
+    accounts = (
+        {
+            "role": "Teacher",
+            "username": "search_teacher",
+            "password": "Passw0rd!",
+            "profile": {"teacher_id": "TZ999", "teacher_name": "搜尋教師", "dept_id": "D001"},
+        },
+        {
+            "role": "Student",
+            "username": "search_student",
+            "password": "Passw0rd!",
+            "profile": {
+                "student_id": "SZ999",
+                "student_name": "搜尋學生",
+                "dept_id": "D001",
+                "grade": 1,
+                "class_code": "A",
+            },
+        },
+    )
+    try:
+        for body in accounts:
+            res = admin.post("/api/admin/users", json=body)
+            assert res.status_code == 201, res.text
+
+        teacher_res = admin.get("/api/admin/users", params={"q": "TZ999"})
+        assert teacher_res.status_code == 200
+        assert [user["username"] for user in teacher_res.json()] == ["search_teacher"]
+
+        student_res = admin.get("/api/admin/users", params={"q": "SZ999"})
+        assert student_res.status_code == 200
+        assert [user["username"] for user in student_res.json()] == ["search_student"]
+    finally:
+        with SessionLocal() as db:
+            db.execute(delete(Teacher).where(Teacher.teacher_id == "TZ999"))
+            db.execute(delete(Student).where(Student.student_id == "SZ999"))
+            db.execute(delete(UserAccount).where(UserAccount.username.in_(("search_teacher", "search_student"))))
+            db.commit()
+
+
 def test_permission_toggle_writes_audit_log(client_as):
     """切換開課權限時寫入一筆稽核紀錄，教師列表的 latest_log 也隨之更新"""
     admin = client_as("admin", role="Admin")

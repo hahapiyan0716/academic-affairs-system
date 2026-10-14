@@ -33,9 +33,10 @@ DB = Annotated[Session, Depends(get_db)]
 # 將 SQLAlchemy ORM 物件轉成 UserOut 串列，並只輸出 UserOut 宣告的欄位；JSON Schema 則用於產生 API 文件。
 @router.get("/users", response_model=list[UserOut])
 def list_users(db: DB, role: Role | None = None, q: Annotated[str | None, Query(max_length=30)] = None):
-    """帳號列表，可依角色與關鍵字（帳號、姓名）篩選"""
+    """帳號列表，可依角色與關鍵字（帳號、教師代號、學號、姓名）篩選"""
+    # 例如當前端呼叫 GET /api/admin/users?role=Teacher&q=王小明 時，FastAPI 會把 role 與 q 解析成函式參數，並傳給 list_users()。
     return user_service.list_users(db, role, q)     # q 是可選的關鍵字參數，限制長度避免過長字串造成昂貴的 LIKE 查詢
-# 例如當前端呼叫 GET /api/admin/users?role=Teacher&q=王小明 時，FastAPI 會把 role 與 q 解析成函式參數，並傳給 list_users()。
+
 
 @router.post("/users", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 def create_user(body: UserCreateIn, db: DB):
