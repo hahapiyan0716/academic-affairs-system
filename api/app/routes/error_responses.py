@@ -1,9 +1,18 @@
 """
-API 文件（/api/docs）用的錯誤狀態碼說明：在 router 或路由加上 responses=errors(404, 409)。
+在 API 文件上標示「這支 API 可能回傳哪些錯誤狀態碼」。用法：在 router 或路由加上 responses=errors(404, 409)。
 
-只影響 Swagger 文件，不改變實際行為：錯誤由 services 丟出 app/errors.py 的業務錯誤，
-再由 middleware/error_handler.py 轉成 HTTP 回應。
-422（輸入驗證失敗）由 FastAPI 自動列出，這裡不重複。
+顯示在哪裡：只出現在 Swagger 文件（http://localhost:3000/api/docs），展開某支 API 後，
+最下方 Responses 區塊會列出每個狀態碼、下方 DESCRIPTIONS 的說明，以及錯誤格式 ErrorOut（{"detail": "..."}）。
+這是給開發者看的，使用者在系統畫面上看不到。
+
+不影響實際行為：就算拿掉 errors(...)，API 回傳的狀態碼與錯誤訊息也完全一樣。實際的錯誤是另一條路徑：
+  service 丟出 app/errors.py 的業務錯誤（例如 ConflictError("此班級已額滿")）
+  → middleware/error_handler.py 轉成 HTTP 409 與 {"detail": "此班級已額滿"}
+  → 前端 web/lib/api.ts 取出 detail 丟出 ApiError → 頁面以 toast 或錯誤區塊顯示給使用者
+因此 service 新增或修改會丟出的錯誤時，要記得同步更新對應路由的 errors(...)，文件才不會和實際行為不一致。
+
+422（輸入驗證失敗）由 FastAPI 自動列出，這裡不重複：路由只要有任何參數就會出現，
+需登入的路由都有 cookie 參數 access_token，所以幾乎每支 API 都有 422。
 """
 
 from typing import Any
