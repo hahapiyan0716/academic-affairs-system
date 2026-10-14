@@ -42,8 +42,9 @@ def update_user(db: Session, admin_id: int, user_id: int, data: UserUpdateIn) ->
     # 防止管理員把自己鎖在系統外
     if data.is_active is False and user_id == admin_id:
         raise BadRequestError("不可停用自己的帳號")
-    # 重設不需要目前的密碼；自己的密碼必須走 POST /api/auth/password 驗證目前密碼，
-    # 否則借用管理員未登出裝置的人可以直接改掉管理員密碼
+    # 管理員替其他帳號重設密碼時，不需要輸入該帳號的目前密碼。
+    # 若目標是管理員自己的帳號，則必須改走 POST /api/auth/password，由該端點先驗證目前密碼；
+    # 避免他人利用管理員尚未登出的裝置直接重設密碼，進而接管管理員帳號。
     if data.password is not None and user_id == admin_id:
         raise BadRequestError("請使用「修改密碼」變更自己的密碼")
 
