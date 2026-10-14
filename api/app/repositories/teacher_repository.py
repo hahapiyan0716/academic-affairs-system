@@ -65,7 +65,9 @@ def list_permission_logs(db: Session, teacher_id: str) -> list[TeacherPermission
 def find_busy_slot(
     db: Session, teacher_ids: list[str], semester_id: str, slots: list[tuple[int, int]]
 ) -> tuple[str, int, int] | None:
-    """任一教師在同學期、同時段已有開放中的班 → 回傳（教師姓名, 星期, 節次）"""
+    """任一教師在同學期、同時段已有其他開放中的班 → 回傳（教師姓名, 星期, 節次）"""
+    # 衝突可能不只一筆（多個時段都撞到，或開課者與合授教師都撞到），但只要有任一筆就不能開課，
+    # 取第一筆組錯誤訊息即可，不必查出全部（.first()）
     row = db.execute(
         select(Teacher.teacher_name, SectionSchedule.weekday, SectionSchedule.period)
         .join(SectionTeacher, SectionTeacher.section_id == SectionSchedule.section_id)
