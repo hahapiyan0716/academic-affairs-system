@@ -490,8 +490,17 @@ db.scalar(select(func.count()).select_from(User))  # 計算後的數字
 | 存活時間     | 一個 HTTP 請求（`get_db()` 開啟、請求結束關閉）         | 8 小時，到期或登出為止                                       |
 | 內容         | 借來的資料庫連線、目前的交易、讀出或改過的 ORM 物件       | `sub`、`username`、`role`、`ver` 等身分資訊          |
 | 本專案的程式 | `app/db.py` 的 `SessionLocal`、各處的 `db: Session` | `app/session.py`（簽發、驗證 JWT）、`web/lib/session.ts` |
+| 碰不碰資料庫 | 就是用來讀寫資料庫的                                      | `app/session.py` 的函式都不查資料庫；但每個需登入的請求，`require_auth` 驗證 JWT 後會另外查一次帳號的 `is_active` 與 `token_version`（`auth_service.ensure_session_valid`），這一步用的是 SQLAlchemy 的 Session |
 
-> 容易搞混：`app/session.py` 處理的是 JWT 登入，跟 SQLAlchemy 的 Session 無關，檔名裡的 session 指的是「登入狀態」。
+> 容易搞混：`app/session.py` 處理的是 JWT 登入，跟 SQLAlchemy 的 Session 無關，檔名裡的 session 指的是「登入狀態」。檔案裡的每一個名稱都屬於登入這一邊：
+>
+> | 名稱 | 做什麼 |
+> | --- | --- |
+> | `CurrentUser` | 從 JWT 解出的登入者身分（dataclass） |
+> | `create_token()` | 簽發 JWT |
+> | `decode_token()` | 驗證 JWT 的簽章、簽發者與到期時間，還原成 `CurrentUser` |
+> | `set_session_cookie()` | 在 HTTP 回應加上 `Set-Cookie`，讓瀏覽器把 JWT 存進 httpOnly cookie `access_token`。只是寫回應標頭，不碰資料庫。在 `routes/auth.py` 的兩個時機呼叫：登入成功、修改自己的密碼後重新簽發（讓目前裝置維持登入） |
+> | `clear_session_cookie()` | 登出時刪除這個 cookie |
 
 一個請求裡兩者同時出現，但各做各的：
 

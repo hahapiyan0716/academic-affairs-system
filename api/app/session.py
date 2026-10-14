@@ -53,7 +53,7 @@ class CurrentUser:
 
 
 def create_token(user: CurrentUser) -> str:
-    """簽發 JWT：payload 為登入者身分加上 ver（登入狀態版本）、iss（簽發者）、iat（簽發時間）、exp（到期時間）"""
+    """簽發登入的 JWT：payload 為登入者身分加上 ver（登入狀態版本）、iss（簽發者）、iat（簽發時間）、exp（到期時間）"""
     settings = get_settings()
     now = datetime.now(UTC)
     payload = {
