@@ -84,4 +84,6 @@ def add(db: Session, account: UserAccount) -> None:
 
 def count(db: Session) -> int:
     """帳號總數"""
+    # func.count() 即 COUNT(*)：計算列數；沒有指定欄位，所以用 select_from 指出要數哪張表。
+    # 若寫成 func.count(欄位) 則不計該欄位為 NULL 的列，例如 count(last_login_at) 只算登入過的帳號
     return db.scalar(select(func.count()).select_from(UserAccount)) or 0

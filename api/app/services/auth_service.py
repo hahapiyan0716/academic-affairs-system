@@ -16,7 +16,7 @@ BCRYPT_ROUNDS = 10
 
 
 def hash_password(password: str) -> str:
-    """產生 bcrypt 雜湊；鹽值（salt）已包含在回傳的字串中，不必另外儲存"""
+    """產生 bcrypt 雜湊；salt 已包含在回傳的字串中，不必另外儲存"""
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt(BCRYPT_ROUNDS)).decode()
 
 
