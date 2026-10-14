@@ -19,7 +19,7 @@ import type { AdminUser, Role, SessionUser } from "@/types";
 import CreateUserDialog from "./create-user-dialog";
 import ResetPasswordDialog from "./reset-password-dialog";
 
-/** 帳號管理：依身分與關鍵字篩選帳號、建立帳號、啟用／停用、調整學籍、重設密碼 */
+/** 帳號管理：依身分與帳號、代號、學號或姓名篩選，並可建立帳號、啟用／停用、調整學籍、重設密碼 */
 export default function UsersPage() {
   const [role, setRole] = useState<"" | Role>(""); // 空字串 = 全部身分
   const [q, setQ] = useState("");
@@ -60,7 +60,7 @@ export default function UsersPage() {
   return (
     <>
       <PageHeader title="帳號管理" description="建立帳號、停用登入、調整學生學籍狀態">
-        <Input placeholder="搜尋帳號或姓名" value={q} onChange={(e) => setQ(e.target.value)} className="w-48" />
+        <Input placeholder="搜尋帳號、代號、學號或姓名" value={q} onChange={(e) => setQ(e.target.value)} className="w-56" />
         {/* Select 的選項值不可為空字串，「全部」以 "all" 代表 */}
         <Select value={role || "all"} onValueChange={(v) => setRole(v === "all" ? "" : (v as Role))}>
           <SelectTrigger className="w-32">

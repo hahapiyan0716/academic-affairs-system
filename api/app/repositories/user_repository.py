@@ -54,11 +54,11 @@ def find_session_state(db: Session, user_id: int) -> tuple[bool, int] | None:
 
 
 def list_users(db: Session, role: Role | None, keyword: str | None) -> list[UserAccount]:
-    """依角色與關鍵字（帳號、教師姓名、學生姓名）篩選"""
+    """依角色與關鍵字（帳號、教師代號、學號、姓名）篩選"""
     # 以 LEFT JOIN 接上教師與學生：Admin 兩邊都沒有，仍要出現在結果中。
-    # 這兩個 JOIN 只用於下方以姓名篩選，不會填入 user.teacher／user.student
+    # 這兩個 JOIN 只用於下方以代號與姓名篩選，不會填入 user.teacher／user.student
     # 關聯資料由 _with_profiles 載入
-    # outerjoin 只是為了讓 WHERE 可以用教師姓名、學生姓名搜尋。JOIN 進來的欄位只用在篩選，不會填進 user.teacher。
+    # outerjoin 讓 WHERE 可以用教師／學生的代號與姓名搜尋。JOIN 進來的欄位只用在篩選，不會填進 user.teacher。
     # 要讓關聯有資料，還是得靠 selectinload 這類載入選項。
     stmt = (
         select(UserAccount)
@@ -72,7 +72,13 @@ def list_users(db: Session, role: Role | None, keyword: str | None) -> list[User
     if keyword:
         like = f"%{keyword}%"
         stmt = stmt.where(
-            or_(UserAccount.username.like(like), Teacher.teacher_name.like(like), Student.student_name.like(like))
+            or_(
+                UserAccount.username.like(like),
+                Teacher.teacher_id.like(like),
+                Teacher.teacher_name.like(like),
+                Student.student_id.like(like),
+                Student.student_name.like(like),
+            )
         )
     return list(db.scalars(stmt))
 

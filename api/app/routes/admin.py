@@ -29,7 +29,7 @@ DB = Annotated[Session, Depends(get_db)]
 
 @router.get("/users", response_model=list[UserOut])
 def list_users(db: DB, role: Role | None = None, q: Annotated[str | None, Query(max_length=30)] = None):
-    """帳號列表，可依角色與關鍵字（帳號、姓名）篩選"""
+    """帳號列表，可依角色與關鍵字（帳號、教師代號、學號、姓名）篩選"""
     return user_service.list_users(db, role, q)
 
 
