@@ -17,5 +17,11 @@ class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ErrorOut(BaseModel):
+    """錯誤回應的格式：{"detail": "錯誤訊息"}（由 middleware/error_handler.py 產生，供 API 文件顯示）"""
+
+    detail: str
+
+
 # 一般名稱欄位的規定（課名、教師姓名、領域名稱）：去除前後空白後 1–50 字
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)]

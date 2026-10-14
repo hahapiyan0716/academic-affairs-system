@@ -52,13 +52,14 @@ npx next build
 
 | 層 | 職責 | 不做的事 |
 | --- | --- | --- |
-| `routes/` | 宣告路徑、角色檢查依賴、呼叫 service、以 `response_model` 決定回應格式 | 不寫 SQL、不判斷業務規則 |
+| `routes/` | 宣告路徑、角色檢查依賴、呼叫 service、以 `response_model` 決定回應格式、標示狀態碼 | 不寫 SQL、不判斷業務規則 |
 | `services/`（`*_service.py`） | 業務規則、交易邊界（`commit`）、稽核紀錄 | 不依賴 HTTP：錯誤一律丟出 `app/errors.py` 的業務錯誤 |
 | `repositories/`（`*_repository.py`） | 查詢與新增，包含 `SELECT ... FOR UPDATE` | 不判斷業務規則、不 `commit` |
 | `schemas/`（`*_schema.py`） | Pydantic 請求與回應模型，依領域分檔；共用基底在 `schemas/base.py` | — |
 | `middleware/` | `require_auth`（`AdminUser`／`TeacherUser`／`StudentUser` 依賴）、`error_handler`、`rate_limit`、`security_headers` | — |
 
 - 新增功能時依序加：schema → repository 查詢 → service 規則 → route。
+- 路由的狀態碼一律寫明（只影響 Swagger 文件，不改變行為）：成功碼以 `status_code=status.HTTP_...` 明確寫出（含預設的 200）；可能的錯誤以 `responses=errors(...)`（`routes/error_responses.py`）列出，共用的 401／403 掛在 router 層，個別路由只列自己的錯誤。新增或修改 service 丟出的錯誤時，要同步更新對應路由的 `errors(...)`；`tests/test_openapi.py` 檢查代表性路由。
 - 業務錯誤（`NotFoundError`、`ConflictError`……）由 `middleware/error_handler.py` 轉成 `{ "detail": message }`。違反資料庫約束的 `DBAPIError` 依 MySQL 錯誤碼轉成 409／422。前端 `web/lib/api.ts` 依賴這個格式；錯誤訊息文字有測試在比對，不要隨意改字。
 - Python 模組名稱不能有連字號，所以檔名是 `auth_schema.py`，而不是 todo-app 的 `auth-schema.ts`。後端程式碼資料夾維持 `app/`（FastAPI 慣例），不是 todo-app 的 `src/`。
 

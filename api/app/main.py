@@ -3,7 +3,7 @@
 啟動：uvicorn app.main:app --reload --port 8000
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, status
 
 from app.middleware.error_handler import register_error_handlers
 from app.middleware.security_headers import register_security_headers
@@ -29,7 +29,7 @@ app.include_router(teacher.router)
 app.include_router(student.router)
 
 
-@app.get("/health", tags=["health"])
+@app.get("/health", tags=["health"], status_code=status.HTTP_200_OK)
 def health():
     """健康檢查：只確認 process 存活，不查資料庫"""
     return {"status": "ok"}

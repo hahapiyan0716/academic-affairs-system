@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.middleware.rate_limit import client_ip, login_limiter, password_limiter
 from app.middleware.require_auth import AnyUser
+from app.routes.error_responses import errors
 from app.schemas.auth_schema import LoginIn, PasswordChangeIn
 from app.services import auth_service
 from app.session import clear_session_cookie, set_session_cookie
@@ -17,7 +18,8 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 DB = Annotated[Session, Depends(get_db)]
 
 
-@router.post("/login")
+# 401：帳號或密碼錯誤；403：帳號已停用；429：同一 IP 登入嘗試過多
+@router.post("/login", status_code=status.HTTP_200_OK, responses=errors(401, 403, 429))
 def login(body: LoginIn, request: Request, response: Response, db: DB):
     """登入成功時寫入 cookie，並回傳使用者資訊供前端決定導向哪個角色首頁"""
     # 限流檢查放在驗證密碼之前：被擋下的請求不會進行 bcrypt 運算
@@ -35,13 +37,14 @@ def logout(response: Response):
     clear_session_cookie(response)
 
 
-@router.get("/me")
+@router.get("/me", status_code=status.HTTP_200_OK, responses=errors(401))
 def me(user: AnyUser):
     """目前登入者（身分內容取自 JWT；帳號是否仍啟用則由 AnyUser 查資料庫確認）"""
     return {"user": user.to_public()}
 
 
-@router.post("/password", status_code=status.HTTP_204_NO_CONTENT)   # 204 No Content 代表成功但沒有回傳資料
+# 204 No Content 代表成功但沒有回傳資料；400：目前密碼錯誤或新舊密碼相同；429：同一帳號嘗試過多
+@router.post("/password", status_code=status.HTTP_204_NO_CONTENT, responses=errors(400, 401, 429))
 def change_password(body: PasswordChangeIn, user: AnyUser, response: Response, db: DB):
     """
     修改自己的密碼（所有角色皆可）。成功後其他裝置上的登入全部失效；
