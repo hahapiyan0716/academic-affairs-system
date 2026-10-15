@@ -29,7 +29,7 @@ uvicorn app.main:app --reload --port 8000
 | `GET /api/history/sections?course_no=&teacher=&q=&field=` | ✅ | 歷年開課紀錄（含修課人數、平均成績） |
 | `GET /api/teacher/me`、`GET POST /api/teacher/sections` | ✅ 教師 | 教師資料、我的開課、新增開課 |
 | `PATCH /api/teacher/sections/{id}` | ✅ 教師 | 調整人數上限、停開 |
-| `GET /api/teacher/sections/{id}/roster`、`PUT …/grades` | ✅ 教師 | 修課名單、批次登分 |
+| `GET /api/teacher/sections/{id}/roster`、`PATCH …/grades` | ✅ 教師 | 修課名單、批次登分 |
 | `POST /api/enrollments`、`DELETE /api/enrollments/{section_id}` | ✅ 學生 | 加選（先搶先贏）、退選 |
 | `GET /api/me/timetable`、`GET /api/me/transcript` | ✅ 學生 | 課表、歷年成績 |
 | `/api/admin/*` | ✅ 管理員 | 帳號（含重設他人密碼）、教師開課權限、課程庫、學期、統計（完整清單見 Swagger） |

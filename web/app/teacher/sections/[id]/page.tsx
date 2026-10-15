@@ -35,7 +35,7 @@ export default function SectionRosterPage() {
 
   const saveMutation = useMutation({
     mutationFn: (grades: { student_id: string; score: string | null }[]) =>
-      api<{ updated: number }>(`/api/teacher/sections/${id}/grades`, { method: "PUT", json: { grades } }),
+      api<{ updated: number }>(`/api/teacher/sections/${id}/grades`, { method: "PATCH", json: { grades } }),
     onSuccess: async (res) => {
       toast.success(`已更新 ${res.updated} 筆成績`);
       // 先等名單重新讀取完成，再清空修改紀錄，畫面才不會短暫顯示修改前的成績。

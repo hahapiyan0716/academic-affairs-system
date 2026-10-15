@@ -17,8 +17,8 @@ from app.session import CurrentUser, Role, decode_token
 
 
 def get_current_user(
-    db: Annotated[Session, Depends(get_db)],
-    access_token: Annotated[str | None, Cookie()] = None,
+    db: Annotated[Session, Depends(get_db)],        # Depends(get_db) 會在每個請求中產生新的 Session，並在請求結束時自動關閉
+    access_token: Annotated[str | None, Cookie()] = None,   # Cookie() 會自動從請求的 cookie 中取出 access_token，若沒有則傳入 None
 ) -> CurrentUser:
     """
     從 cookie 取出 JWT 並還原登入者；參數名稱 access_token 即 cookie 名稱。
@@ -44,6 +44,7 @@ def require_role(*roles: Role):
 
 
 # 路由參數的型別別名：AnyUser 只要求登入，其餘另外限定角色
+# Annotated[CurrentUser, Depends(...)] 會在路由中自動注入 user 物件，並在函式內使用
 AnyUser = Annotated[CurrentUser, Depends(get_current_user)]
 AdminUser = Annotated[CurrentUser, Depends(require_role("Admin"))]
 TeacherUser = Annotated[CurrentUser, Depends(require_role("Teacher"))]

@@ -61,8 +61,10 @@ def roster(user: TeacherUser, db: DB, section_id: int):
     return section_service.get_roster(db, teacher_id_of(user), section_id)
 
 
+# PATCH 而非 PUT：只更新請求中列出的學生，未列出的學生成績維持不變（部分修改），不是整批取代。
+# 重送同一個請求不會重複寫入（成績未變即跳過），仍可安全重試。
 # 404：不是自己授課的班，或名單中沒有這些學生；409：學期不是上課中或已結束
-@router.put(
+@router.patch(
     "/sections/{section_id}/grades", response_model=GradesResult, status_code=status.HTTP_200_OK, responses=errors(404, 409)
 )
 def update_grades(user: TeacherUser, db: DB, section_id: int, body: GradesUpdate):

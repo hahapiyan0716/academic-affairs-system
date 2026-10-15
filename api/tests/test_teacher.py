@@ -80,24 +80,24 @@ def test_grades_and_audit_log(semester, make_section, client_as):
     t001 = client_as("T001", role="Teacher")
 
     # 選課中不可登分
-    res = t001.put(f"/api/teacher/sections/{sid}/grades", json={"grades": [{"student_id": "S001", "score": 80}]})
+    res = t001.patch(f"/api/teacher/sections/{sid}/grades", json={"grades": [{"student_id": "S001", "score": 80}]})
     assert res.status_code == 409
 
     semester(SemesterStatus.InProgress)
-    res = t001.put(f"/api/teacher/sections/{sid}/grades", json={"grades": [{"student_id": "S001", "score": 80}]})
+    res = t001.patch(f"/api/teacher/sections/{sid}/grades", json={"grades": [{"student_id": "S001", "score": 80}]})
     assert res.status_code == 200 and res.json()["updated"] == 1
 
-    res = t001.put(f"/api/teacher/sections/{sid}/grades", json={"grades": [{"student_id": "S001", "score": 85.5}]})
+    res = t001.patch(f"/api/teacher/sections/{sid}/grades", json={"grades": [{"student_id": "S001", "score": 85.5}]})
     assert res.json()["updated"] == 1
 
     # 成績未變動時不寫入稽核紀錄
-    res = t001.put(f"/api/teacher/sections/{sid}/grades", json={"grades": [{"student_id": "S001", "score": 85.5}]})
+    res = t001.patch(f"/api/teacher/sections/{sid}/grades", json={"grades": [{"student_id": "S001", "score": 85.5}]})
     assert res.json() == {"updated": 0, "unchanged": 1}
 
     # 未修課的學生、超出範圍的成績
-    res = t001.put(f"/api/teacher/sections/{sid}/grades", json={"grades": [{"student_id": "S003", "score": 60}]})
+    res = t001.patch(f"/api/teacher/sections/{sid}/grades", json={"grades": [{"student_id": "S003", "score": 60}]})
     assert res.status_code == 404
-    res = t001.put(f"/api/teacher/sections/{sid}/grades", json={"grades": [{"student_id": "S001", "score": 101}]})
+    res = t001.patch(f"/api/teacher/sections/{sid}/grades", json={"grades": [{"student_id": "S001", "score": 101}]})
     assert res.status_code == 422
 
     with SessionLocal() as db:

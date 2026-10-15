@@ -133,7 +133,7 @@ def withdraw(db: Session, student_id: str, section_id: int) -> Enrollment:
 
 
 def timetable(db: Session, student_id: str, semester_id: str | None) -> TimetableOut:
-    """課表：已選上的班級清單 + 攤平的時段格"""
+    """課表：已選上的選課 / 課表清單(在課表下面) + 攤平的時段格"""
     semester = resolve_semester(db, semester_id)
     sections = enrollment_repository.timetable_sections(db, student_id, semester.semester_id)
     slots = enrollment_repository.timetable_slots(db, student_id, semester.semester_id)
