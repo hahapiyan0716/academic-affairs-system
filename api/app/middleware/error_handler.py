@@ -29,6 +29,7 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
 
 async def db_error_handler(request: Request, exc: DBAPIError) -> JSONResponse:
     """資料庫錯誤：PyMySQL 例外的第一個參數是 MySQL 錯誤碼，據此對照 DB_ERRORS"""
+    # orig 是原始例外（PyMySQL 的 InternalError），args[0] 是 MySQL 錯誤碼，args[1] 是 MySQL 的錯誤訊息
     code = exc.orig.args[0] if exc.orig is not None and exc.orig.args else None
     if code in DB_ERRORS:
         http_status, message = DB_ERRORS[code]

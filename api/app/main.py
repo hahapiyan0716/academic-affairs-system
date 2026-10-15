@@ -1,6 +1,6 @@
 """
 進入點：建立 FastAPI 應用程式，依序掛上 middleware、錯誤處理與路由。
-啟動：uvicorn app.main:app --reload --port 8000
+啟動：uvicorn app.main:app --reload --port 8000 (這邊指定 port 8000，Next.js 會在 3000 轉送到這個 port)
 """
 
 from fastapi import FastAPI, status
@@ -16,10 +16,10 @@ app = FastAPI(
     # Swagger UI 掛在 /api/docs，透過 Next.js 同源存取時會自動帶上登入 cookie
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
-    redoc_url=None,
+    redoc_url=None,     # redoc 是另一個 OpenAPI 文件 UI，這裡不需要
 )
 
-register_security_headers(app)
+register_security_headers(app)      
 register_error_handlers(app)
 
 app.include_router(auth.router)

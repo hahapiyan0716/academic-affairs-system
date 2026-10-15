@@ -46,3 +46,5 @@ class TooManyRequestsError(AppError):
     def __init__(self, message: str, retry_after: int) -> None:
         super().__init__(message)
         self.retry_after = retry_after
+        # retry_after 是由 RateLimiter 計算的，表示要等多久後才會空出名額，前端可依此決定多久後再重試
+        # retry_after 會放進回應的 Retry-After 標頭，告訴前端多久後才會空出名額

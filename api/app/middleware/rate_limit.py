@@ -81,9 +81,12 @@ class RateLimiter:
                 hits.popleft()
             if len(hits) >= self.limit:
                 # 等到最舊的一筆滑出時間窗，才會空出名額
+                # retry_after = 600 秒，也就是要等 600 秒後才會有空位
                 retry_after = int(self.window - (now - hits[0])) + 1
-                raise TooManyRequestsError(self.message, retry_after)
-            hits.append(now)
+                # raise TooManyRequestsError 會被 middleware/error_handler.py 捕捉，
+                # 轉成 HTTP 429 回應，並在 Retry-After 標頭告訴前端多久後才會空出名額
+                raise TooManyRequestsError(self.message, retry_after)       # raise 是「丟出例外」，會中斷這個函式的執行，回到呼叫端去處理，所以不會執行下面的 hits.append(now)
+            hits.append(now)    # 記錄這次請求的時間戳
 
     def reset(self) -> None:
         """清空所有計數（測試用，避免前一個測試的登入次數影響下一個）"""
