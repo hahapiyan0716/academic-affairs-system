@@ -19,16 +19,17 @@ app = FastAPI(
     redoc_url=None,     # redoc 是另一個 OpenAPI 文件 UI，這裡不需要
 )
 
-register_security_headers(app)      
-register_error_handlers(app)
-
-app.include_router(auth.router)
-app.include_router(admin.router)
-app.include_router(common.router)
-app.include_router(teacher.router)
-app.include_router(student.router)
+register_security_headers(app)      # 掛上全域 HTTP 中介層，統一加上安全標頭
+register_error_handlers(app)        # 註冊 AppError 與 DBAPIError 的例外處理器，轉成 HTTP 回應
 
 
+app.include_router(auth.router)     # 掛上 /api/auth 路由，包含登入、登出、JWT refresh 與帳號管理
+app.include_router(admin.router)    # 掛上 /api/admin 路由，包含管理員專用的開課、選課期間、學生、教師與成績管理
+app.include_router(common.router)   # 掛上 /api/common 路由，包含學期、科目、班級、課程與歷年成績查詢
+app.include_router(teacher.router)  # 掛上 /api/teacher 路由，包含教師專用的課程與成績管理
+app.include_router(student.router)  # 掛上 /api/student 路由，包含學生專用的選課、成績與歷年查詢
+
+# health() route 只確認 process 存活，不查資料庫，方便監控系統判斷 FastAPI 是否存活
 @app.get("/health", tags=["health"], status_code=status.HTTP_200_OK)
 def health():
     """健康檢查：只確認 process 存活，不查資料庫"""
