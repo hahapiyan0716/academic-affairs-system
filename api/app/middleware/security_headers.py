@@ -1,6 +1,5 @@
 """
 為每個回應加上基本的安全性標頭（全域 HTTP 中介層）。
-
 中介層（middleware）包在整個應用程式外面：每一個 HTTP 請求都會先經過它，回應送出前也再經過它一次。
 套用範圍是「全部」，包含成功回應、錯誤回應（401、404、422……）、/api/docs 與 /health，
 所以適合做與個別路由無關、而且一個都不能漏的事，例如加安全標頭。
@@ -45,3 +44,24 @@ def register_security_headers(app: FastAPI) -> None:
         # 例如 /api/docs 從外部 CDN 載入 Swagger UI 時，CDN 不會得知文件網址
         response.headers.setdefault("Referrer-Policy", "no-referrer")
         return response
+
+"""
+【什麼是標頭】
+每個 HTTP 回應都分成「標頭（headers）」與「內容（body）」。標頭是寫在前面、給瀏覽器看的說明
+（內容是什麼類型、有多長、能不能快取……），使用者在畫面上看不到；內容才是真正的 JSON 或 HTML。
+可以想成包裹：標頭是外箱上的標籤，內容是箱子裡的東西。
+
+每個回應「原本就有」標頭，安全標頭只是額外再貼上的幾張標籤。以 GET /api/semesters 為例（未登入，401）：
+    content-length: 25                  ┐ 原本就有：FastAPI 自動產生，描述內容
+    content-type: application/json     ┘
+    x-content-type-options: nosniff     ┐
+    x-frame-options: DENY               ├ 安全標頭：這個中介層加上去的
+    referrer-policy: no-referrer        ┘
+安全標頭不會自動出現，沒有人加就不會有。
+
+【三個安全標頭】（詳細說明見下方各行註解）
+    標頭                              意思                                防止的攻擊
+    X-Content-Type-Options: nosniff   照 Content-Type 處理，不准猜類型    MIME sniffing 造成的 XSS（JSON 被當成 HTML／JS 執行）
+    X-Frame-Options: DENY             不准被任何網頁用 iframe 嵌入        點擊劫持（Clickjacking）
+    Referrer-Policy: no-referrer      不送 Referer（來源網址）            網址中的資訊洩漏給外部網站
+"""

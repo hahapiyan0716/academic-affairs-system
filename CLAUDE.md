@@ -74,6 +74,7 @@ npx next build
 - 不用「密碼修改時間 vs. JWT 的 `iat`」判斷失效：兩者都只到秒（MySQL `DATETIME` 還會四捨五入），同一秒內登入與改密碼時無法區分。
 - 前端 `lib/api.ts` 收到 401 時先呼叫 `/api/auth/logout` 清除 cookie 再導向 `/login`：被停用帳號的 JWT 仍通過 `proxy.ts` 驗證，若不清 cookie 會在登入頁與角色首頁之間無限導向。
 - `web/proxy.ts` 只負責頁面導向，不是安全邊界；權限一律由後端檢查。
+- 安全標頭（`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`）在兩處設定，值必須一致：頁面與靜態檔由 `web/next.config.ts` 的 `headers()` 加上，`/api/*` 由 FastAPI 的 `middleware/security_headers.py` 加上（頁面不經過 FastAPI）。`next.config.ts` 另設 `poweredByHeader: false`。
 - 密碼以 `bcrypt` 雜湊。bcrypt 5.x 對超過 72 bytes 的輸入會拋出例外，因此密碼上限以 bytes 驗證（`schemas/auth_schema.py` 的 `Password`）。
 - 登入限流存在單一 process 的記憶體中；只信任來自 loopback（Next.js rewrites）的 `X-Forwarded-For`。
 
