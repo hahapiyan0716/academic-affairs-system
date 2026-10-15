@@ -59,7 +59,6 @@ class RateLimiter:
     每個 key（IP 或帳號）保留一個時間戳佇列，只計算最近 window_seconds 秒內的請求
     請求超過 limit 時丟出 TooManyRequestsError，並告訴使用者多久後才會空出名額。
     """
-
     def __init__(self, limit: int, window_seconds: float, message: str) -> None:
         self.limit = limit
         self.window = window_seconds
