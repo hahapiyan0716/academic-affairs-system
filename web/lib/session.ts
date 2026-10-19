@@ -1,3 +1,6 @@
+/**
+ * 會話管理工具（伺服器端專用）。
+ */
 import { jwtVerify } from "jose";
 import type { SessionUser } from "@/types";
 

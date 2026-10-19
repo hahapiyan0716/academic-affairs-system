@@ -18,17 +18,22 @@ const SECURITY_HEADERS = [
   { key: "Referrer-Policy", value: "no-referrer" },
 ];
 
+// Next.js 設定
 const nextConfig: NextConfig = {
   // 不送出 X-Powered-By: Next.js，避免透露網站使用的技術
   poweredByHeader: false,
 
   // 把 /api/* 轉發到 FastAPI：瀏覽器只看到同一個來源（localhost:3000），
   // 因此 httpOnly cookie 會自動帶上，也不需要處理 CORS
+  // source: /api/:path* 會匹配 /api/ 後的所有路徑，並把 :path* 的值傳給 destination
+  // 例如 /api/users 會轉發到 http://localhost:8000/api/users
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${API_URL}/api/:path*` }];
   },
 
   // /:path* 符合所有路徑（含首頁 /）
+  // 為所有頁面加上安全標頭，避免瀏覽器被攻擊者利用漏洞執行惡意程式碼
+  // source: /_next/static/:path* 也要加上，因為 Next.js 自己回應的 JS、CSS 也可能被攻擊者利用漏洞執行惡意程式碼
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
