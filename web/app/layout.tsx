@@ -37,7 +37,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* QueryProvider 是 Client Component，提供 useApiQuery／useMutation 共用的快取 */}
         {/* 也就是說，所有頁面都可以使用相同的資料快取，避免重複發送 API 請求 */}
         <QueryProvider>{children}</QueryProvider>
-        {/* 全域只放一個 Toaster，任何頁面呼叫 toast() 都顯示在畫面上方中央 */}
+        {/*
+        全域通知顯示容器，只需放置一個。
+        任何頁面呼叫 toast() 都會在畫面上方中央顯示通知；就是有錯誤會顯示在畫面上方中央的那個小方塊。
+        richColors 會依成功、錯誤或警告類型套用不同顏色。
+        */}
         <Toaster richColors position="top-center" />
       </body>
     </html>
