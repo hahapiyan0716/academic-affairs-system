@@ -11,10 +11,12 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const user = await verifySession(request.cookies.get(AUTH_COOKIE)?.value);
 
+  // 已登入卻進入 /login，導回自己的首頁
   if (pathname === "/login") {
-    return user ? NextResponse.redirect(new URL(ROLE_HOME[user.role], request.url)) : NextResponse.next();
+    return user ? NextResponse.redirect(new URL(ROLE_HOME[user.role], request.url)) : NextResponse.next();    // NextResponse.next() 讓 /login 頁面繼續渲染
   }
 
+  // 未登入，導向 /login
   if (!user) {
     const url = new URL("/login", request.url);
     // 記下原本要去的頁面，登入後可導回
