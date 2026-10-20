@@ -3,6 +3,9 @@
 
 JWT 以 HS256 簽章，存放於 httpOnly cookie；Next.js 的 proxy.ts 以同一組 JWT_SECRET 驗證，只用來決定頁面導向。
 JWT 刻意不放 can_open_section 與學籍狀態：權限可能隨時被管理員收回，必須每次查資料庫確認。
+
+這裡的 session 指 HTTP 層的「登入狀態」（存在瀏覽器 cookie、可跨多個請求），
+與 app/db.py 的 SQLAlchemy Session（每個請求一個，管理資料庫連線與交易）是不同概念；程式中的 db: Session 一律指後者。
 """
 
 from dataclasses import dataclass
