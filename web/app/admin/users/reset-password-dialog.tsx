@@ -38,6 +38,7 @@ export default function ResetPasswordDialog({ user, onClose }: { user: AdminUser
   }
 
   return (
+    // 是否顯示由父元件決定（是否渲染本元件），這裡固定 open；按 Esc、點背景或關閉鈕時通知父元件卸載
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>

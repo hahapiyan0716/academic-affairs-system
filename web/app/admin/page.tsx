@@ -23,7 +23,7 @@ export default function AdminDashboard() {
   if (isPending) return <LoadingState />;
   if (error || !data) return <ErrorState message={error?.message ?? "無法載入資料"} />;
 
-  // 上方四格統計卡片
+  // 上方四格統計卡片；icon 存的是元件本身，渲染時以 <t.icon /> 動態使用
   const tiles = [
     { label: "系統帳號", value: data.users, icon: Users },
     { label: "在學學生", value: data.enrolled_students, icon: Users },

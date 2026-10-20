@@ -111,6 +111,7 @@ export default function UsersPage() {
                       {u.student ? (
                         <Select
                           value={u.student.status}
+                          // 外層已判斷 u.student 存在，但 TypeScript 的型別收窄不會延續到回呼函式內，因此以 ! 標示非 null
                           onValueChange={(v) =>
                             changeStudentStatus.mutate({ studentId: u.student!.student_id, status: v })
                           }

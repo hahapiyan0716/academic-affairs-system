@@ -22,6 +22,7 @@ export default function TeacherPermissionPage() {
         method: "PATCH",
         json: { can_open_section: !t.can_open_section },
       }),
+    // t 是送出前的教師資料，因此 can_open_section 為 true 代表這次是「收回」
     onSuccess: (_, t) => {
       toast.success(`已${t.can_open_section ? "收回" : "授予"} ${t.teacher_name} 的開課權限`);
       invalidate("/api/admin/teachers", "/api/admin/stats");

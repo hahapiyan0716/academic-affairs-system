@@ -10,6 +10,7 @@ import { api, hardNavigate } from "@/lib/api";
 import type { SessionUser } from "@/types";
 
 // 內容與 lib/session.ts 的 ROLE_HOME 相同，修改時需同步
+// 不直接從 lib/session.ts 匯入：那是伺服器端專用模組（jose、JWT 驗證），匯入會把它打包進瀏覽器端
 const ROLE_HOME = { Admin: "/admin", Teacher: "/teacher", Student: "/student" } as const;
 
 /** 登入頁：登入成功後導向原本要去的頁面，或該角色的首頁 */

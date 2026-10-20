@@ -60,6 +60,7 @@ export default function SectionSettings({ section, rosterPath }: { section: Sect
           disabled={section.enrolled_count > 0 || patchSection.isPending}
           title={section.enrolled_count > 0 ? "已有學生選修，不可停開" : undefined}
           onClick={() => {
+            // 停開無法復原，以瀏覽器原生的 confirm 對話框再確認一次
             if (confirm("確定停開此班級？停開後無法恢復，教室時段會被釋放。")) {
               patchSection.mutate({ body: { status: "Cancelled" }, msg: "班級已停開" });
             }

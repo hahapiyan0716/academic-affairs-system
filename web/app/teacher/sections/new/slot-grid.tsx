@@ -31,6 +31,7 @@ export default function SlotGrid({ selected, onToggle }: { selected: Set<string>
                 const on = selected.has(key);
                 return (
                   <td key={key} className="p-0.5">
+                    {/* 本元件放在開課表單內；<button> 預設 type 為 submit，必須指定 type="button"，點格子才不會送出表單 */}
                     <button
                       type="button"
                       onClick={() => onToggle(key)}

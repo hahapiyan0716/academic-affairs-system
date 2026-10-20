@@ -23,7 +23,7 @@ export default function SemestersPage() {
   const [term, setTerm] = useState("2");
   const invalidate = useInvalidate();
 
-  /** 修改學期（狀態或目前學期），成功後顯示 msg */
+  /** 修改學期（狀態或目前學期），成功後顯示 msg；msg 只供 onSuccess 使用，不會送到後端 */
   const patch = useMutation({
     mutationFn: ({ id, body }: { id: string; body: object; msg: string }) =>
       api(`/api/admin/semesters/${id}`, { method: "PATCH", json: body }),
@@ -97,6 +97,7 @@ export default function SemestersPage() {
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{s.section_count ?? 0}</TableCell>
                     <TableCell>
+                      {/* 受控元件：選取後立即送出；後端拒絕時（例如已有其他學期為選課中）value 仍是伺服器的值，選單自動回到原狀態 */}
                       <Select
                         value={s.status}
                         onValueChange={(v) =>
