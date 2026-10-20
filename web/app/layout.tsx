@@ -6,7 +6,7 @@ import "./globals.css";
 
 // next/font 在建置時下載字型並自行託管；variable 讓 globals.css 以 CSS 變數引用
 const geistSans = Geist({
-  variable: "--font-geist-sans",
+  variable: "--font-sans",
   subsets: ["latin"],
 });
 
