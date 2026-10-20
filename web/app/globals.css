@@ -1,12 +1,24 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
+/* 全站樣式：由 layout.tsx 匯入一次。設計 token（顏色、圓角、字型）由 shadcn/ui 產生 */
 
+@import "tailwindcss";       /* Tailwind CSS v4：以 CSS 設定，不需 tailwind.config.js */
+@import "tw-animate-css";    /* 動畫 utility（animate-in、fade-in 等），供對話框、下拉選單的開關動畫使用 */
+@import "shadcn/tailwind.css"; /* shadcn/ui 元件需要的自訂 variant（data-open:、data-checked: 等）與 utility */
+
+/* dark: variant 的條件：祖先元素帶有 .dark class。目前沒有任何地方加上 .dark，深色模式不會生效 */
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * @theme：把下方 :root／.dark 的 CSS 變數註冊成 Tailwind 的設計 token，
+ * 例如 --color-primary 產生 bg-primary、text-primary，--radius-lg 產生 rounded-lg。
+ * inline：utility 直接使用變數的值（.bg-primary { background-color: var(--primary) }），
+ * 而不是 var(--color-primary)。若不加 inline，--color-primary 會在 :root 就解析成淺色的值，
+ * .dark 改寫 --primary 時不會跟著改變。
+ */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  /* --font-sans 的值由 layout.tsx 的 next/font（variable: "--font-sans"）定義在 <html> 上；
+     next/font 的樣式不在 cascade layer 中，優先於這裡 @layer theme 輸出的同名變數 */
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
@@ -39,6 +51,7 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  /* 圓角階層皆由 --radius 推算，只要改 --radius 就能整體調整 */
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -48,6 +61,10 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/*
+ * 淺色主題的實際色值（預設）。顏色以 oklch(亮度 彩度 色相) 表示，彩度 0 為灰階。
+ * 成對出現的 xxx 與 xxx-foreground 分別是背景色與放在其上的文字色，例如 bg-primary 搭配 text-primary-foreground。
+ */
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -83,6 +100,7 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
+/* 深色主題：只改寫變數的值，utility 不必改。需在祖先元素加上 .dark 才會套用（目前未啟用） */
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
@@ -117,7 +135,9 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* 全域基礎樣式：放在 base layer，任何 utility class 都能覆寫（例如 layout.tsx 的 body 用 bg-muted/30 取代 bg-background） */
 @layer base {
+  /* 所有元素的預設邊框色與 focus 外框色，元件只需寫 border 而不必每次指定顏色 */
   * {
     @apply border-border outline-ring/50;
   }
