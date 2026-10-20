@@ -52,6 +52,7 @@ export function ChangePasswordDialog() {
     change.mutate();
   }
 
+  // 產生指定欄位的 onChange：set("current") 回傳一個只更新 form.current 的函式，三個輸入框共用同一段邏輯
   const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -80,6 +81,7 @@ export function ChangePasswordDialog() {
               required
             />
           </div>
+          {/* minLength 只是瀏覽器端的即時提示；密碼規則（8 字元以上、不超過 72 bytes）由後端 auth_schema.py 的 Password 驗證 */}
           <div className="grid gap-1.5">
             <Label htmlFor="new-password">新密碼（至少 8 個字元）</Label>
             <Input

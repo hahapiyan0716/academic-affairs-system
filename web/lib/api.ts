@@ -1,3 +1,7 @@
+/**
+ * 前端呼叫後端 API 的唯一入口：api() 負責 fetch 與錯誤轉換，useApiQuery／useInvalidate 包裝 TanStack Query 的讀取與快取失效。
+ */
+// 含 Hook 且會用到 window，只能在 Client Component 中使用
 "use client";
 
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -45,6 +49,7 @@ export async function api<T>(path: string, init?: RequestInit & { json?: unknown
     ...rest,
     headers: json !== undefined ? { "Content-Type": "application/json", ...rest.headers } : rest.headers,
     body: json !== undefined ? JSON.stringify(json) : rest.body,
+    // 同源請求才帶 cookie；所有 API 都經 rewrites 走同源，JWT cookie 會自動附上
     credentials: "same-origin",
   });
 
@@ -64,6 +69,7 @@ export async function api<T>(path: string, init?: RequestInit & { json?: unknown
     }
     throw new ApiError(res.status, detail);
   }
+  // 204 No Content（登出、修改密碼）沒有回應內容，呼叫 res.json() 會拋出例外
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
 
@@ -76,10 +82,12 @@ export type QueryParams = Record<string, string | undefined>;
  * path 為 null 時不發請求（用於「等其他資料載入後才知道要查什麼」的情況）。
  */
 export function useApiQuery<T>(path: string | null, params?: QueryParams) {
+  // 濾掉空值後同時用於網址與 query key：{ q: "" } 與 {} 視為同一個查詢，共用快取
   const filtered = Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v)) as Record<string, string>;
   const search = new URLSearchParams(filtered).toString();
   return useQuery({
     queryKey: [path, filtered],
+    // signal：元件卸載或 query key 改變時取消進行中的請求；path! 安全，因為 path 為 null 時 enabled 為 false，不會執行
     queryFn: ({ signal }) => api<T>(search ? `${path}?${search}` : path!, { signal }),
     enabled: path !== null,
     // 換篩選條件時保留上一份結果直到新資料回來，畫面不會閃回「載入中」
@@ -110,7 +118,9 @@ export function useInvalidate() {
     (...paths: string[]) =>
       paths.length === 0
         ? client.invalidateQueries()
+        // queryKey: [p] 是前綴比對，符合所有以 p 開頭的 key，即同一路徑的所有參數組合
         : Promise.all(paths.map((p) => client.invalidateQueries({ queryKey: [p] }))),
+    // useCallback 讓回傳的函式在 client 不變時維持同一個參考，可安全放進其他 Hook 的依賴陣列
     [client],
   );
 }

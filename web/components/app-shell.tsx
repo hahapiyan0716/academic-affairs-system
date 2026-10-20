@@ -25,12 +25,14 @@ export async function AppShell({
 
   return (
     <div className="flex min-h-screen flex-col">
+      {/* 捲動時固定在頂端；半透明背景加模糊，內容捲到下方時仍看得出輪廓 */}
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4">
           <div className="flex items-center gap-2 font-semibold">
             <GraduationCap className="size-5 text-primary" />
             <span className="hidden sm:inline">教務管理系統</span>
           </div>
+          {/* NavLinks、ChangePasswordDialog、LogoutButton 是 Client Component，可以直接放在 Server Component 中 */}
           <NavLinks items={nav} />
           <div className="ml-auto flex items-center gap-3 text-sm">
             <span className="hidden text-muted-foreground md:inline">

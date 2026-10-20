@@ -1,3 +1,4 @@
+// shadcn/ui 產生的元件（以 npx shadcn add <名稱> --overwrite 更新，內容請勿直接修改）：開關（Radix Switch），用於管理員切換帳號啟用、課程啟用與教師開課權限
 "use client"
 
 import * as React from "react"

@@ -1,3 +1,4 @@
+// shadcn/ui 產生的元件（以 npx shadcn add <名稱> --overwrite 更新，內容請勿直接修改）：下拉選單（Radix Select）；選項值不可為空字串，「全部」選項以 "__all" 代表（見 components/common.tsx）
 "use client"
 
 import * as React from "react"

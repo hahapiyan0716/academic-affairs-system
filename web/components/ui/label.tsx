@@ -1,3 +1,4 @@
+// shadcn/ui 產生的元件（以 npx shadcn add <名稱> --overwrite 更新，內容請勿直接修改）：表單標籤（Radix Label），以 htmlFor 對應輸入框的 id
 "use client"
 
 import * as React from "react"

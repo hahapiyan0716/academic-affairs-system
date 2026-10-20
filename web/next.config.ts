@@ -31,9 +31,8 @@ const nextConfig: NextConfig = {
     return [{ source: "/api/:path*", destination: `${API_URL}/api/:path*` }];
   },
 
-  // /:path* 符合所有路徑（含首頁 /）
-  // 為所有頁面加上安全標頭，避免瀏覽器被攻擊者利用漏洞執行惡意程式碼
-  // source: /_next/static/:path* 也要加上，因為 Next.js 自己回應的 JS、CSS 也可能被攻擊者利用漏洞執行惡意程式碼
+  // /:path* 符合所有路徑（含首頁 /），因此頁面與 /_next/static/ 的 JS、CSS 都會加上 SECURITY_HEADERS，不必另外列出
+  // 經 rewrites 轉發的 /api/* 實測每個安全標頭只出現一次（來自 FastAPI），不會重複
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },

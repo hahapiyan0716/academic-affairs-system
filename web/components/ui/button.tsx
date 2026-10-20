@@ -1,3 +1,4 @@
+// shadcn/ui 產生的元件（以 npx shadcn add <名稱> --overwrite 更新，內容請勿直接修改）：按鈕；variant 決定外觀、size 決定尺寸，asChild 可把按鈕樣式套到子元素（例如 DialogTrigger 內的按鈕）
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"

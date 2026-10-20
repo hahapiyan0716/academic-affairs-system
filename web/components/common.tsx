@@ -1,3 +1,4 @@
+// SemesterSelect／FieldSelect 使用 useApiQuery（Hook），因此整個模組都是 Client Component
 "use client";
 
 import { Loader2 } from "lucide-react";
@@ -107,6 +108,7 @@ export function SemesterSelect({
 export function FieldSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const { data } = useApiQuery<string[]>("/api/fields");
   return (
+    // 與 SemesterSelect 相同，以 "__all" 代表空字串
     <Select value={value || "__all"} onValueChange={(v) => onChange(v === "__all" ? "" : v)}>
       <SelectTrigger className="w-36">
         <SelectValue placeholder="課程領域" />

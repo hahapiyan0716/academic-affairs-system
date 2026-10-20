@@ -1,3 +1,4 @@
+// shadcn/ui 產生的元件（以 npx shadcn add <名稱> --overwrite 更新，內容請勿直接修改）：文字輸入框
 import * as React from "react"
 import { cn } from "cn"
 

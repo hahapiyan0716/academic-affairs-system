@@ -1,3 +1,4 @@
+// shadcn/ui 產生的元件（以 npx shadcn add <名稱> --overwrite 更新，內容請勿直接修改）：全域提示訊息的 Toaster（掛在 app/layout.tsx）。專案沒有掛 next-themes 的 ThemeProvider，theme 退回 "system"，toast 會跟隨作業系統的深淺色設定
 "use client"
 
 import { useTheme } from "next-themes"

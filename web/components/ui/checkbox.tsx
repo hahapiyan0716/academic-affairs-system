@@ -1,3 +1,4 @@
+// shadcn/ui 產生的元件（以 npx shadcn add <名稱> --overwrite 更新，內容請勿直接修改）：核取方塊（Radix Checkbox），用於教師新增開課時勾選共同授課教師
 "use client"
 
 import * as React from "react"

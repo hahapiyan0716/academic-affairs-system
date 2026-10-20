@@ -5,7 +5,7 @@ export type Role = "Admin" | "Teacher" | "Student";
 
 /** JWT payload 中的登入者（後端 app/session.py 的 CurrentUser.to_public） */
 export interface SessionUser {
-  sub: string;
+  sub: string; // user_id；JWT 規範的 sub 為字串
   username: string;
   role: Role;
   name: string;
@@ -53,6 +53,7 @@ export interface HistorySection extends Section {
   avg_score: string | null;
 }
 
+/** 教室（教師開課選擇上課地點時使用） */
 export interface Room {
   room_code: string;
   building_name: string;
@@ -118,7 +119,7 @@ export interface RosterEntry {
   degree: number; // 0 = 大學部、1 = 碩博班
   status: string;
   score: string | null;
-  feedback_rank: number | null;
+  feedback_rank: number | null; // 教學評量（1–10），尚未填寫為 null
 }
 
 /** 教師查看的班級修課名單 */
