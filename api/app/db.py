@@ -1,5 +1,8 @@
 """
 資料庫連線：建立全程式共用的 engine（連線池）與 Session 工廠。
+
+這裡的 Session 是 SQLAlchemy 的資料庫工作單元：每個請求一個，負責借還連線、交易與已載入的 ORM 物件。
+它與 app/session.py、web/lib/session.ts 的「登入狀態」（存在 cookie 的 JWT）是不同概念。
 """
 
 from collections.abc import Iterator
