@@ -1,4 +1,6 @@
 // 列舉值 → 中文顯示文字（鍵值需與後端 api/app/models.py 的列舉一致）
+// 本模組沒有伺服器端依賴，伺服器端（proxy.ts）與瀏覽器端（Client Component）都可以匯入
+import type { Role } from "@/types";
 
 // 索引 0 = 星期一；後端的 weekday 從 1 開始，取用時要減 1
 export const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"] as const;
@@ -33,6 +35,16 @@ export const ROLE_LABEL: Record<string, string> = {
   Admin: "管理員",
   Teacher: "教師",
   Student: "學生",
+};
+
+/**
+ * 各角色登入後的首頁，同時也是該角色所有頁面的路徑前綴。
+ * proxy.ts 以它導向與檢查角色區域，登入頁以它決定登入後的去處。
+ */
+export const ROLE_HOME: Record<Role, string> = {
+  Admin: "/admin",
+  Teacher: "/teacher",
+  Student: "/student",
 };
 
 /** '1132' → '113 學年度第 2 學期' */

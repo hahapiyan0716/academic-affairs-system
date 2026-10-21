@@ -10,13 +10,6 @@ import type { SessionUser } from "@/types";
 export const AUTH_COOKIE = "access_token";        // cookie 名稱（JWT 存放在瀏覽器的 cookie 中，名稱必須與後端 api/app/config.py 一致）
 const JWT_ISSUER = "academic-affairs-system";     // JWT 的 issuer（簽發者）必須與後端 api/app/config.py 一致
 
-/** 各角色登入後的首頁 */
-export const ROLE_HOME: Record<SessionUser["role"], string> = {
-  Admin: "/admin",
-  Teacher: "/teacher",
-  Student: "/student",
-};
-
 /**
  * 驗證 JWT 並取出使用者資訊（伺服器端專用：proxy.ts 與 Server Component）。
  * 這裡的驗證只用於「頁面導向」；真正的資料存取權限由後端（FastAPI）再驗證一次。

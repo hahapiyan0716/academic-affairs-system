@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { AUTH_COOKIE, ROLE_HOME, verifySession } from "@/lib/session";
+import { ROLE_HOME } from "@/lib/labels";
+import { AUTH_COOKIE, verifySession } from "@/lib/session";
 
 /**
  * 路由保護（Next.js 16 起 middleware 更名為 proxy）
