@@ -12,8 +12,10 @@ import type { Transcript } from "@/types";
 export default function TranscriptPage() {
   const { data, error, isPending } = useApiQuery<Transcript>("/api/me/transcript");
 
-  if (isPending) return <LoadingState />;
-  if (error || !data) return <ErrorState message={error?.message ?? "無法載入資料"} />;
+  if (isPending)
+    return <LoadingState />;
+  if (error || !data)
+    return <ErrorState message={error?.message ?? "無法載入資料"} />;
 
   return (
     <>
