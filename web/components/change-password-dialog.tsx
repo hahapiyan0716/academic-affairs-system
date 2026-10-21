@@ -28,7 +28,8 @@ export function ChangePasswordDialog() {
   /** 開關對話框；關閉時清空表單，不讓密碼留在元件狀態中 */
   function changeOpen(o: boolean) {
     setOpen(o);
-    if (!o) setForm(EMPTY);
+    if (!o)
+      setForm(EMPTY);
   }
 
   const change = useMutation({
