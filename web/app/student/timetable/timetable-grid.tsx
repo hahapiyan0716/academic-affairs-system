@@ -20,6 +20,7 @@ export default function TimetableGrid({ timetable }: { timetable: Timetable }) {
   // 以 "星期-節次" 為鍵建立查表，渲染每一格時可直接取得該時段的課
   const grid = new Map<string, TimetableSlot>();
   timetable.slots.forEach((s) => grid.set(`${s.weekday}-${s.period}`, s));
+  // 至少顯示到第 8 節，有更晚的課就延伸
   const maxPeriod = Math.max(8, ...timetable.slots.map((s) => s.period));
   // 超過色盤數量時循環使用
   const colorOf = (sectionId: number) =>
