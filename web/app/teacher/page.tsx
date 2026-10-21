@@ -22,7 +22,7 @@ export default function TeacherHome() {
 
   return (
     <>
-      <PageHeader title="我的開課" description="您授課（含合授）的所有班級；點選班級可查看名單與登錄成績">
+      <PageHeader title="我的開課" description="您授課（含合授）的所有班級，點選班級可查看名單與登錄成績">
         <SemesterSelect value={semester} onChange={setSemester} allowAll />
         {me?.can_open_section ? (
           // asChild：把按鈕樣式套到子元素 <Link> 上，渲染結果是有按鈕外觀的 <a>，而不是 <button> 包 <a>

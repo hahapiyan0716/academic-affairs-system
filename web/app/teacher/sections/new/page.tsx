@@ -29,6 +29,7 @@ export default function NewSectionPage() {
   const { data: teachers } = useApiQuery<{ teacher_id: string; teacher_name: string }[]>("/api/teachers");
 
   // 只列出可開課的學期（與後端 section_service 的 OPENABLE 一致）
+  // 只在 semesters 改變時重新篩選；其他表單狀態造成 render 時沿用先前結果。
   const openable = useMemo(
     () => semesters?.filter((s) => s.status === "Planning" || s.status === "Enrolling") ?? [],
     [semesters],
@@ -50,15 +51,18 @@ export default function NewSectionPage() {
     mutationFn: (body: object) => api<Section>("/api/teacher/sections", { method: "POST", json: body }),
     onSuccess: (section) => {
       toast.success(`已開設 ${section.course_name}（${section.course_no}-${section.section_code}）`);
-      // 新班級會出現在我的開課、學生加退選與歷年開課；管理員頁面的開班數也會改變
+      // 新班級會出現在我的開課、學生加退選與歷年開課；管理員頁面的開班數也會改變，所以這些查詢都要 invalidate()。
+      // invalidate() 立即把查詢標記為過期（畫面上正在使用的會馬上重新請求）；這裡沒有 await，router.push() 不會等資料回來。
+      // 換到 /teacher 後，該頁的查詢因為已過期，載入時會重新請求，因此看到的是最新資料。
       invalidate(...SECTION_VIEWS, "/api/admin/semesters", "/api/admin/courses");
-      router.push("/teacher");
+      router.push("/teacher");    // 新增成功就回到教師首頁
     },
     onError: (err) => toast.error(err.message),
   });
 
   // 提前 return 必須放在所有 Hook 之後，否則 Hook 的呼叫順序會隨狀態改變
-  if (isPending) return <LoadingState />;
+  if (isPending)
+    return <LoadingState />;
   if (!me?.can_open_section) {
     return (
       <>
@@ -71,9 +75,12 @@ export default function NewSectionPage() {
   /** 選取／取消某個時段 */
   function toggleSlot(key: string) {
     setSlots((prev) => {
-      // 複製一份新的 Set：直接修改 prev 不會改變參考，React 不會重新渲染
+      // 複製一份新的 Set：因為直接修改 prev 不會改變參考，React 不會重新渲染
+      // Set 是可變物件；直接呼叫 prev.add() 或 prev.delete() 不會改變物件參考。
+      // React 不會深入比較 Set 的內容，因此建立並回傳新的 Set，讓 React 能判斷 state 已改變並更新畫面。
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
+      if (next.has(key))
+        next.delete(key);
       else next.add(key);
       return next;
     });
@@ -206,6 +213,7 @@ export default function NewSectionPage() {
           <CardContent>
             <SlotGrid selected={slots} onToggle={toggleSlot} />
             {/* 成功後即將換頁，isSuccess 時也保持停用，以免重複開課 */}
+            {/* 因為 type="submit"，點擊按鈕會送出整個表單 */}
             <Button type="submit" className="mt-4 w-full" disabled={create.isPending || create.isSuccess}>
               建立開課班級
             </Button>

@@ -13,7 +13,9 @@ export default function SlotGrid({ selected, onToggle }: { selected: Set<string>
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-sm">
         <thead>
+          {/* <tr> 是表格的列，<th> 是表格的標題欄位 */}
           <tr>
+            {/* <th> 是表格的標題欄位：左上角為「節」，其後為星期一到日 */}
             <th className="w-10 p-1 text-muted-foreground">節</th>
             {DAYS.map((d) => (
               <th key={d} className="p-1 font-medium">
@@ -25,6 +27,7 @@ export default function SlotGrid({ selected, onToggle }: { selected: Set<string>
         <tbody>
           {PERIODS.map((p) => (
             <tr key={p}>
+              {/* <td> 是表格的資料欄位；每列第一格顯示節次 */}
               <td className="p-1 text-center text-muted-foreground tabular-nums">{p}</td>
               {DAYS.map((d) => {
                 const key = `${d}-${p}`;
@@ -35,7 +38,7 @@ export default function SlotGrid({ selected, onToggle }: { selected: Set<string>
                     <button
                       type="button"
                       onClick={() => onToggle(key)}
-                      aria-pressed={on}
+                      aria-pressed={on}     // aria-pressed 讓螢幕閱讀器知道格子是否被選取
                       aria-label={`星期${WEEKDAYS[d - 1]}第 ${p} 節`}
                       className={cn(
                         "h-8 w-full rounded border transition-colors",

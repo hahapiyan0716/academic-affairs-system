@@ -27,6 +27,7 @@ import SectionSettings from "./section-settings";
 export default function SectionRosterPage() {
   // 動態路由 [id]：網址中的班級 ID
   const { id } = useParams<{ id: string }>();
+  // 班級名單 API 路徑；用於讀取名單、登錄成績、更新班級設定後重新讀取
   const rosterPath = `/api/teacher/sections/${id}/roster`;
   const { data, error, isPending } = useApiQuery<Roster>(rosterPath);
   // 只記錄使用者修改過的欄位；未修改者顯示伺服器上的值
@@ -54,6 +55,7 @@ export default function SectionRosterPage() {
   const editable = section.status === "Open" && ["Planning", "Enrolling"].includes(data.semester_status);
   // 畫面上每位學生的成績 = 修改中的值，否則為伺服器上的值
   const scoreOf = (sid: string, original: string | null) => edits[sid] ?? original ?? "";
+  // 將所有學生的成績轉換為物件，方便後續查詢
   const scores = Object.fromEntries(students.map((s) => [s.student_id, scoreOf(s.student_id, s.score)]));
   // 與伺服器值不同的才送出；改了又改回原值的不算
   const dirty = students.filter((s) => (s.score ?? "") !== scores[s.student_id]);
@@ -68,7 +70,8 @@ export default function SectionRosterPage() {
     saveMutation.mutate(
       dirty.map((s) => ({
         student_id: s.student_id,
-        // 清空欄位 = 清除成績（送出 null）；數值以字串送出，由後端轉成 Decimal
+        // 如果清空成績欄位 = 清除成績（會送出 null）
+        // 如果有成績，數值以字串送出，由後端轉成 Decimal
         score: scores[s.student_id] === "" ? null : scores[s.student_id],
       })),
     );
@@ -76,7 +79,7 @@ export default function SectionRosterPage() {
 
   return (
     <>
-      <Button variant="ghost" size="sm" asChild className="mb-2 -ml-2">
+      <Button variant="ghost" size="sm" asChild className="mb-2 -ml-2 hover:text-blue-600 hover:underline">
         <Link href="/teacher">
           <ArrowLeft />
           返回我的開課
@@ -89,6 +92,7 @@ export default function SectionRosterPage() {
         <SemesterStatusBadge status={data.semester_status} />
       </PageHeader>
 
+      {/* 編輯班級設定 */}
       {editable && <SectionSettings section={section} rosterPath={rosterPath} />}
 
       <Card>

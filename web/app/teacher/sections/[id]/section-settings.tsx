@@ -25,7 +25,7 @@ export default function SectionSettings({ section, rosterPath }: { section: Sect
       toast.success(msg);
       // 人數上限與停開會反映在我的開課、學生加退選等列表
       await invalidate(rosterPath, ...SECTION_VIEWS);
-      setCapacityEdit(null);
+      setCapacityEdit(null);    // 清除輸入中的值，顯示伺服器上的人數上限
     },
     onError: (e) => toast.error(e.message),
   });
