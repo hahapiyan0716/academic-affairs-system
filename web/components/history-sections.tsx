@@ -16,10 +16,11 @@ import type { HistorySection } from "@/types";
  * 學生與教師共用（/student/history、/teacher/history）；API 開放給所有已登入角色。
  */
 export function HistorySections() {
-  const [q, setQ] = useState("");
-  const [teacher, setTeacher] = useState("");
+  const [q, setQ] = useState("");               // 課名或課號的搜尋字串，會被 useDebouncedValue 延遲
+  const [teacher, setTeacher] = useState("");   // 教師姓名的搜尋字串，會被 useDebouncedValue 延遲
   // 領域為下拉選單，選定即查詢，不需延遲
   const [field, setField] = useState("");
+  // 「延遲」指的是 Debounce（防抖）：使用者停止輸入 500 毫秒後，才更新查詢條件並發送 API 請求(也就是會自動去查詢並更新搜尋結果)。
   // 兩個搜尋框合併成一個字串再延遲，連續在兩個欄位間輸入時也只發一次請求。
   // 用字串而非物件：物件每次渲染都是新的參考，會讓 useDebouncedValue 的 effect 不斷重跑。
   // 單行輸入框無法輸入換行，因此以 \n 分隔不會與內容衝突。
