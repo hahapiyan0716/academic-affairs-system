@@ -26,7 +26,7 @@ export default function TimetableGrid({ timetable }: { timetable: Timetable }) {
     PALETTE[timetable.sections.findIndex((s) => s.section_id === sectionId) % PALETTE.length];
 
   return (
-    <table className="w-full min-w-[640px] table-fixed border-collapse text-sm">
+    <table className="w-full min-w-160 table-fixed border-collapse text-sm">
       <thead>
         <tr>
           <th className="w-12 border-b p-2 text-muted-foreground">節</th>
