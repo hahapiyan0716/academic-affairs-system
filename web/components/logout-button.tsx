@@ -9,7 +9,9 @@ export function LogoutButton() {
   async function logout() {
     // 即使登出請求失敗（例如 cookie 早已過期）仍導向登入頁
     await api("/api/auth/logout", { method: "POST" }).catch(() => undefined);
-    // 整頁重新載入而非 router.push，讓 proxy 與 Server Component 以清除後的 cookie 重新判斷
+    // 使用完整頁面導覽，不採用 router.push 的 Client-side navigation：
+    // 這會重建 React 狀態與 TanStack Query 記憶體快取，並讓新請求帶上登出回應更新後的 cookie，
+    // 再由 proxy 與 Server Components 根據最新登入狀態重新渲染 /login。
     hardNavigate("/login");
   }
   return (
