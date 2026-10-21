@@ -79,7 +79,7 @@ export default function NewSectionPage() {
     });
   }
 
-  function submit(e: React.FormEvent) {
+  function submit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     // Select 元件不支援原生的 required 驗證，這裡手動檢查
     if (!semesterId || !courseNo || !room) return toast.error("請選擇學期、課程與教室");

@@ -31,7 +31,7 @@ export default function ResetPasswordDialog({ user, onClose }: { user: AdminUser
     onError: (e) => toast.error(e.message),
   });
 
-  function submit(e: React.FormEvent) {
+  function submit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     if (password !== confirm) return toast.error("兩次輸入的密碼不一致");
     reset.mutate();

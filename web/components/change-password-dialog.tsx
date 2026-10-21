@@ -39,7 +39,7 @@ export function ChangePasswordDialog() {
         json: { current_password: form.current, new_password: form.next },
       }),
     onSuccess: () => {
-      // 後端已為本裝置重新簽發 cookie，不需要重新登入
+      // 後端已為本裝置重新簽發 cookie，不需要重新登入，但其他裝置上的登入已失效
       toast.success("密碼已更新，其他裝置上的登入已失效");
       changeOpen(false);
     },
@@ -47,10 +47,10 @@ export function ChangePasswordDialog() {
     onError: (e) => toast.error(e.message),
   });
 
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
+  function submit(e: React.SubmitEvent<HTMLFormElement>) {
+    e.preventDefault();   // 阻止表單送出後頁面重新整理
     if (form.next !== form.confirm) return toast.error("兩次輸入的新密碼不一致");
-    change.mutate();
+    change.mutate();      // 發送 API 請求，更新密碼
   }
 
   // 產生指定欄位的 onChange：set("current") 回傳一個只更新 form.current 的函式，三個輸入框共用同一段邏輯

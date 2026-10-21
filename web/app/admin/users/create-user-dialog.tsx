@@ -52,7 +52,7 @@ export default function CreateUserDialog() {
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  function submit(e: React.FormEvent) {
+  function submit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     const base = { role, username: form.username, password: form.password };
     // 請求格式依 role 而不同（對應後端 UserCreateIn 的 discriminated union）；教師的系所為選填

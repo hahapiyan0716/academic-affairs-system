@@ -61,7 +61,7 @@ export default function CourseDialog({
     onError: (err) => toast.error(err.message),
   });
 
-  function submit(e: React.FormEvent) {
+  function submit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     save.mutate({
       course_name: form.course_name,
