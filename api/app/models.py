@@ -68,6 +68,10 @@ TRUE = text("1")
 FALSE = text("0")
 NOW = func.current_timestamp()
 
+# 教室代碼格式：大樓代號（1 個大寫字母，可再接 1 位數字）、連字號、三位數房號。
+# Room 的 CHECK 約束與開課請求的驗證（schemas/section_schema.py）共用這個 pattern
+ROOM_CODE_PATTERN = "^[A-Z][0-9]?-[0-9]{3}$"
+
 
 # ---------------------------------------------------------------------
 # 列舉(Enum)型別：帳號角色、學籍狀態、課程類別、學期狀態、班級狀態、修課狀態
@@ -282,10 +286,13 @@ class Building(Base):
 
 
 class Room(Base):
-    """教室；seat_capacity 為座位數（未知時為 NULL）"""
+    """教室；room_code 為「大樓代號-三位數房號」（O-313、I1-018），seat_capacity 為座位數（未知時為 NULL）"""
 
     __tablename__ = "Room"
-    __table_args__ = table_args()
+    # 第三個參數 'c' 讓比對區分大小寫；表的 collation 不分大小寫，只寫 REGEXP 會放過 o-313
+    __table_args__ = table_args(
+        CheckConstraint(f"REGEXP_LIKE(room_code, '{ROOM_CODE_PATTERN}', 'c')", name="chk_room_code")
+    )
 
     room_code: Mapped[str] = mapped_column(VARCHAR(10), primary_key=True)
     building_id: Mapped[str] = mapped_column(CHAR(4), fk("Building.building_id", "Room_building_id_fkey"))

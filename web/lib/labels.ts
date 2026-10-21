@@ -52,7 +52,7 @@ export function semesterLabel(id: string): string {
   return `${id.slice(0, 3)} 學年度第 ${id.slice(3)} 學期`;
 }
 
-/** '一5@O313,一6@O313' → '一5,6 (O313)' 的精簡顯示 */
+/** '一5@O-313,一6@O-313' → '一5,6 (O-313)' 的精簡顯示 */
 export function compactSchedule(text: string | null): string {
   if (!text) return "—";
   // 以「星期 + 教室」分組，把同組的節次收集在一起；Map 保留插入順序，輸出順序與原字串一致

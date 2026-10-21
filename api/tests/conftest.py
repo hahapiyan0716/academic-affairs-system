@@ -82,7 +82,7 @@ def make_section(semester) -> Callable[..., int]:
                 capacity=capacity,
                 teachers=[SectionTeacher(teacher_id=teacher_id, is_primary=True)],
                 schedules=[
-                    SectionSchedule(weekday=w, period=p, room_code=r) for w, p, r in (slots or [(1, 1, "O313")])
+                    SectionSchedule(weekday=w, period=p, room_code=r) for w, p, r in (slots or [(1, 1, "O-313")])
                 ],
             )
             db.add(section)

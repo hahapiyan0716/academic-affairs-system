@@ -43,8 +43,8 @@ def test_full_section_rejected(make_section, client_as):
 
 def test_time_conflict_rejected(make_section, client_as):
     """與已選課程有任一節重疊（星期二第 4 節）即視為衝堂"""
-    a = make_section(course_no="A0001", slots=[(2, 3, "O313"), (2, 4, "O313")])
-    b = make_section(course_no="A0002", slots=[(2, 4, "L102")])
+    a = make_section(course_no="A0001", slots=[(2, 3, "O-313"), (2, 4, "O-313")])
+    b = make_section(course_no="A0002", slots=[(2, 4, "L-102")])
     s001 = client_as("S001")
     assert s001.post("/api/enrollments", json={"section_id": a}).status_code == 201
 
@@ -55,8 +55,8 @@ def test_time_conflict_rejected(make_section, client_as):
 
 def test_same_course_twice_rejected(make_section, client_as):
     """同一學期不可同時選同一門課的兩個班（時段不衝突也一樣）"""
-    a = make_section(course_no="A0003", section_code="01", slots=[(3, 1, "O313")])
-    b = make_section(course_no="A0003", section_code="02", slots=[(4, 1, "O313")])
+    a = make_section(course_no="A0003", section_code="01", slots=[(3, 1, "O-313")])
+    b = make_section(course_no="A0003", section_code="02", slots=[(4, 1, "O-313")])
     s001 = client_as("S001")
     assert s001.post("/api/enrollments", json={"section_id": a}).status_code == 201
 
@@ -84,8 +84,8 @@ def test_semester_not_enrolling(semester, make_section, client_as):
 
 def test_browse_marks_conflict(make_section, client_as):
     """瀏覽班級時，已選的班不標衝堂，與它時段重疊的其他班標為衝堂"""
-    a = make_section(course_no="A0001", slots=[(5, 1, "O313")])
-    b = make_section(course_no="A0002", slots=[(5, 1, "L102")])
+    a = make_section(course_no="A0001", slots=[(5, 1, "O-313")])
+    b = make_section(course_no="A0002", slots=[(5, 1, "L-102")])
     s001 = client_as("S001")
     s001.post("/api/enrollments", json={"section_id": a})
 
@@ -96,8 +96,8 @@ def test_browse_marks_conflict(make_section, client_as):
 
 def test_browse_filters_by_field(make_section, client_as):
     # 種子資料：A0007 演算法 ∈ 人工智慧、資料科學；A0005 統計學 ∈ 基礎知識
-    ai = make_section(course_no="A0007", slots=[(1, 2, "O313")])
-    basic = make_section(course_no="A0005", slots=[(1, 3, "O313")])
+    ai = make_section(course_no="A0007", slots=[(1, 2, "O-313")])
+    basic = make_section(course_no="A0005", slots=[(1, 3, "O-313")])
     s001 = client_as("S001")
 
     rows = {r["section_id"]: r for r in s001.get("/api/sections?semester_id=9991&field=人工智慧").json()}
@@ -109,8 +109,8 @@ def test_browse_filters_by_field(make_section, client_as):
 
 
 def test_history_filters_by_field(make_section, client_as):
-    ai = make_section(course_no="A0007", slots=[(1, 2, "O313")])
-    basic = make_section(course_no="A0005", slots=[(1, 3, "O313")])
+    ai = make_section(course_no="A0007", slots=[(1, 2, "O-313")])
+    basic = make_section(course_no="A0005", slots=[(1, 3, "O-313")])
 
     rows = client_as("S001").get("/api/history/sections?field=人工智慧").json()
     ids = {r["section_id"] for r in rows}

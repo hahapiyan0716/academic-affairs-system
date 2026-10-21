@@ -1,9 +1,11 @@
 """教師開課權限、教室／教師衝堂、登分與稽核紀錄測試"""
 
+import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import DBAPIError
 
 from app.db import SessionLocal
-from app.models import ScoreChangeLog, SemesterStatus
+from app.models import Room, ScoreChangeLog, SemesterStatus
 
 
 def _payload(**overrides):
@@ -50,6 +52,27 @@ def test_room_conflict_rejected(semester, client_as, grant_permission):
     assert "教室" in res.json()["detail"]
 
 
+@pytest.mark.parametrize("room_code", ["O313", "o-313", "O-31", "I12-018"])
+def test_invalid_room_code_rejected(client_as, room_code):
+    """教室代碼不符「大樓代號-三位數房號」→ 422（請求驗證就擋下，不會查資料庫）"""
+    res = client_as("T001", role="Teacher").post(
+        "/api/teacher/sections",
+        json=_payload(slots=[{"weekday": 1, "period": 2, "room_code": room_code}]),
+    )
+    assert res.status_code == 422
+
+
+@pytest.mark.parametrize("room_code", ["O313", "o-313"])
+def test_room_code_check_constraint(room_code):
+    """資料庫層的 chk_room_code 同樣擋下格式不符的代碼，且區分大小寫"""
+    with SessionLocal() as db:
+        db.add(Room(room_code=room_code, building_id="B001", seat_capacity=10))
+        with pytest.raises(DBAPIError) as exc:
+            db.flush()
+        db.rollback()
+    assert exc.value.orig.args[0] == 3819
+
+
 def test_teacher_time_conflict_rejected(semester, client_as, grant_permission):
     """同一位教師在同時段開兩個班 → 409"""
     grant_permission("T001", True)
@@ -59,7 +82,7 @@ def test_teacher_time_conflict_rejected(semester, client_as, grant_permission):
     # 同一位教師、同時段、不同教室
     res = t001.post(
         "/api/teacher/sections",
-        json=_payload(course_no="A0005", slots=[{"weekday": 1, "period": 2, "room_code": "O313"}]),
+        json=_payload(course_no="A0005", slots=[{"weekday": 1, "period": 2, "room_code": "O-313"}]),
     )
     assert res.status_code == 409
     assert "教師衝堂" in res.json()["detail"]

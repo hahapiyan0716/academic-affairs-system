@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.models import ROOM_CODE_PATTERN
 from app.schemas.base import ORMModel
 
 
@@ -48,7 +49,7 @@ class TimeSlotIn(BaseModel):
 
     weekday: int = Field(ge=1, le=7)
     period: int = Field(ge=1, le=14)
-    room_code: str = Field(min_length=1, max_length=10)
+    room_code: str = Field(pattern=ROOM_CODE_PATTERN)
 
 
 class SectionCreate(BaseModel):

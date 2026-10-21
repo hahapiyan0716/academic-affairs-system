@@ -320,3 +320,15 @@ ALTER TABLE `UserAccount` ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0;
 
 UPDATE alembic_version SET version_num='0003' WHERE alembic_version.version_num = '0002';
 
+-- Running upgrade 0003 -> 0004
+-- 這是第四次的資料庫升級，把教室代碼統一為「大樓代號-房號」格式，並加上 CHECK 約束。
+-- 對應 migration 0004_room_code_format.py
+
+UPDATE `Room` SET room_code = 'O-313' WHERE room_code = 'O313';
+
+UPDATE `Room` SET room_code = 'L-102' WHERE room_code = 'L102';
+
+ALTER TABLE `Room` ADD CONSTRAINT chk_room_code CHECK (REGEXP_LIKE(room_code, '^[A-Z][0-9]?-[0-9]{3}$', 'c'));
+
+UPDATE alembic_version SET version_num='0004' WHERE alembic_version.version_num = '0003';
+

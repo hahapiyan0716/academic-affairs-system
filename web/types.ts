@@ -37,7 +37,7 @@ export interface Section {
   capacity: number;
   status: "Open" | "Cancelled";
   teacher_names: string | null; // 多位教師以「、」分隔
-  schedule_text: string | null; // 例如 "一5@O313,一6@O313"，顯示時用 compactSchedule 轉換
+  schedule_text: string | null; // 例如 "一5@O-313,一6@O-313"，顯示時用 compactSchedule 轉換
   enrolled_count: number;
   field_names: string | null; // 課程領域，以「、」分隔
 }

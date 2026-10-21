@@ -203,12 +203,12 @@ ROLLBACK;
 -- UPDATE Enrollment SET score = 120 WHERE student_id = 'S001' AND section_id = 1;
 --   → ERROR 3819: Check constraint 'chk_enrollment_score' is violated.
 
--- UNIQUE 約束：同學期同教室同時段不可重複（L102 在 1151 的星期三第 2 節已被演算法使用）
+-- UNIQUE 約束：同學期同教室同時段不可重複（L-102 在 1151 的星期三第 2 節已被演算法使用）
 -- INSERT INTO SectionSchedule (section_id, semester_id, room_code, weekday, period)
--- VALUES (11, '1151', 'L102', 3, 2);
---   → ERROR 1062: Duplicate entry '1151-L102-3-2' for key 'SectionSchedule.uq_room_timeslot'
+-- VALUES (11, '1151', 'L-102', 3, 2);
+--   → ERROR 1062: Duplicate entry '1151-L-102-3-2' for key 'SectionSchedule.uq_room_timeslot'
 
 -- 複合外鍵：時段的學期必須與班級一致（section 11 屬於 1151，不能掛到 1132）
 -- INSERT INTO SectionSchedule (section_id, semester_id, room_code, weekday, period)
--- VALUES (11, '1132', 'O313', 6, 1);
+-- VALUES (11, '1132', 'O-313', 6, 1);
 --   → ERROR 1452: Cannot add or update a child row: a foreign key constraint fails
