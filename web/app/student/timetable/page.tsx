@@ -21,7 +21,8 @@ export default function TimetablePage() {
         title="我的課表"
         description={data ? `共 ${data.sections.length} 門課、${data.total_credits} 學分` : undefined}
       >
-        <SemesterSelect value={semester} onChange={setSemester} />
+        {/* 未選擇時顯示後端實際回傳的學期（即目前學期）；查詢仍以空字串送出，不會因此多發一次請求 */}
+        <SemesterSelect value={semester || data?.semester_id || ""} onChange={setSemester} />
       </PageHeader>
       {isPending ? (
         <LoadingState />

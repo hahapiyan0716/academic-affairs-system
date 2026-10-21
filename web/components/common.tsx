@@ -87,7 +87,8 @@ export function SemesterSelect({
   const { data } = useApiQuery<Semester[]>("/api/semesters");
   return (
     // Radix Select 不允許空字串作為選項值，因此「全部學期」在元件內部以 "__all" 代表
-    <Select value={value || "__all"} onValueChange={(v) => onChange(v === "__all" ? "" : v)}>
+    // 沒有「全部學期」選項時，空字串直接交給 Radix，顯示 placeholder，而不是對不到選項的空白
+    <Select value={value || (allowAll ? "__all" : "")} onValueChange={(v) => onChange(v === "__all" ? "" : v)}>
       <SelectTrigger className="w-56">
         <SelectValue placeholder="選擇學期" />
       </SelectTrigger>
