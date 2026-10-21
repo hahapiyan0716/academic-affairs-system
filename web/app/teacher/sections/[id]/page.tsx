@@ -104,7 +104,7 @@ export default function SectionRosterPage() {
               儲存成績{dirty.length ? `（${dirty.length}）` : ""}
             </Button>
           ) : (
-            <span className="text-sm text-muted-foreground">僅上課中或已結束的學期可登錄成績</span>
+            <span className="text-sm text-muted-foreground">僅上課中的學期可登錄成績</span>
           )}
         </CardHeader>
         <CardContent className="p-0">

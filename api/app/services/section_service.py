@@ -41,7 +41,8 @@ from app.session import CurrentUser
 
 # 學期狀態 → 允許的操作
 OPENABLE = (SemesterStatus.Planning, SemesterStatus.Enrolling)  # 可開課、可修改班級設定
-GRADABLE = (SemesterStatus.InProgress, SemesterStatus.Finished)  # 可登分
+# 可登分：只有上課中；學期結束後成績即鎖定，需更正時由管理員暫時把學期切回上課中
+GRADABLE = (SemesterStatus.InProgress,)
 
 
 def get_detail(db: Session, section_id: int) -> SectionDetailView:
@@ -237,7 +238,7 @@ def update_grades(db: Session, teacher_id: str, user_id: int, section_id: int, d
     section = _get_owned(db, teacher_id, section_id)
     semester = semester_repository.get(db, section.semester_id)
     if semester is None or semester.status not in GRADABLE:
-        raise ConflictError("僅上課中或已結束的學期可登錄成績")
+        raise ConflictError("僅上課中的學期可登錄成績")
 
     ids = [g.student_id for g in data.grades]
     rows = enrollment_repository.lock_active_for_grading(db, section_id, ids)

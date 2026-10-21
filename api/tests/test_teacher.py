@@ -1,7 +1,7 @@
 """教師開課權限、教室／教師衝堂、登分與稽核紀錄測試"""
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import DBAPIError
 
 from app.db import SessionLocal
@@ -128,6 +128,18 @@ def test_grades_and_audit_log(semester, make_section, client_as):
             select(ScoreChangeLog).where(ScoreChangeLog.section_id == sid).order_by(ScoreChangeLog.log_id)
         ).all()
     assert [(log.old_score, log.new_score) for log in logs] == [(None, 80), (80, 85.5)]
+    assert t001.get(f"/api/teacher/sections/{sid}/roster").json()["gradable"] is True
+
+    # 學期結束後成績鎖定：不可登分、名單標示不可編輯，成績與稽核紀錄都不變
+    semester(SemesterStatus.Finished)
+    res = t001.patch(f"/api/teacher/sections/{sid}/grades", json={"grades": [{"student_id": "S001", "score": 90}]})
+    assert res.status_code == 409
+    assert res.json()["detail"] == "僅上課中的學期可登錄成績"
+    roster = t001.get(f"/api/teacher/sections/{sid}/roster").json()
+    assert roster["gradable"] is False
+    assert roster["students"][0]["score"] == "85.5"
+    with SessionLocal() as db:
+        assert db.scalar(select(func.count()).where(ScoreChangeLog.section_id == sid)) == 2
 
     # 其他教師看不到這個班
     assert client_as("T002", role="Teacher").get(f"/api/teacher/sections/{sid}/roster").status_code == 404

@@ -50,7 +50,7 @@ export default function SemestersPage() {
     <>
       <PageHeader
         title="學期管理"
-        description="規劃中、選課中可開課；選課中才可加退選；上課中、已結束才可登錄成績"
+        description="規劃中、選課中可開課；選課中才可加退選；上課中才可登錄成績"
       >
         <Input className="w-20" value={year} onChange={(e) => setYear(e.target.value)} aria-label="學年" />
         <span className="text-sm text-muted-foreground">學年度第</span>

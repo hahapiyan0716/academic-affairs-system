@@ -97,7 +97,7 @@ npx next build
 - 學期狀態決定可做的操作（檢查在 `services/section_service.py` 與 `services/enrollment_service.py`）：
   - 開課：`Planning`／`Enrolling`
   - 加退選：`Enrolling`
-  - 登分：`InProgress`／`Finished`
+  - 登分：`InProgress`（學期結束後成績鎖定；需更正時由管理員暫時把學期切回 `InProgress`）
 - 「目前學期」由 `Semester.is_current` 決定，全表只能有一筆為 true（`semester_service.update_semester` 在同一交易內維護）。
 - 學期狀態可任意切換，但**同一時間只能有一個學期為 `Enrolling`**：`update_semester` 先以 `semester_repository.lock_all` 鎖住所有學期列再檢查，否則兩個同時進來的修改都會通過檢查。只在應用層檢查，因為測試會直接在資料庫建立選課中的測試學期 `9991`，與種子的 `1151` 並存。
 - 選課中的學期不一定是目前學期（例如本學期上課中、下學期先開放選課）。學生加退選頁（`web/app/student/page.tsx`）顯示選課中的學期，沒有時才瀏覽目前學期；加選 API 只看班級所屬學期的狀態，不看 `is_current`。
