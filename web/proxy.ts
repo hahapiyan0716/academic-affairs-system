@@ -26,7 +26,9 @@ export async function proxy(request: NextRequest) {
   // 未登入，導向 /login
   if (!user) {
     const url = new URL("/login", request.url);
-    // 記下原本要去的頁面，登入後可導回
+    // 記下原本要去的頁面，登入後可導回。只記 pathname，不含查詢字串：
+    // 例如 /admin/users?page=2 會被轉成 /login?next=%2Fadmin%2Fusers（searchParams 會把 / 編碼成 %2F），?page=2 不保留
+    // 登入頁只接受自己角色底下的站內路徑作為 next，避免開放式重新導向（Open Redirect），見 app/login/page.tsx
     if (pathname !== "/") url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }

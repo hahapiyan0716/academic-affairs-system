@@ -36,7 +36,10 @@ export default function EnrollPage() {
   const keyword = useDebouncedValue(q.trim());
   // 領域為下拉選單，選定即查詢，不需延遲
   const [field, setField] = useState("");
+  // 學期清單與開課班級清單分開查詢，避免先查到預設的目前學期、再換成選課中的學期
+  // 所以先找學期清單，找出選課中的學期或目前學期，再查詢該學期的開課班級
   const { data: semesters } = useApiQuery<Semester[]>("/api/semesters");
+  // 先找選課中的學期，沒有的話找目前學期；兩者都沒有時 semester 為 undefined，查詢時不帶學期篩選
   const semester = semesters?.find((s) => s.status === "Enrolling") ?? semesters?.find((s) => s.is_current);
   // 學期清單載入前不查詢（path 為 null），以免先查到預設的目前學期、再換成選課中的學期
   const { data, error, isPending } = useApiQuery<BrowseSection[]>(semesters ? "/api/sections" : null, {
@@ -49,15 +52,19 @@ export default function EnrollPage() {
   const invalidate = useInvalidate();
 
   /** 加選（withdraw = false）或退選（withdraw = true） */
+  // useMutation 會自動處理 loading、error、success 狀態，並提供 mutate() 觸發請求
   const enrollment = useMutation({
+    // s 是要加退選的班級，withdraw 決定是加選還是退選
     mutationFn: ({ s, withdraw }: { s: BrowseSection; withdraw: boolean }) =>
       withdraw
         ? api(`/api/enrollments/${s.section_id}`, { method: "DELETE" })
         : api("/api/enrollments", { method: "POST", json: { section_id: s.section_id } }),
+    // _ 是 mutationFn 的回傳值，{ s, withdraw } 是 mutate() 的參數
     onSuccess: (_, { s, withdraw }) =>
       toast.success(withdraw ? `已退選 ${s.course_name}` : `加選成功：${s.course_name}`),
     // 額滿、衝堂、重複修課等規則由後端判斷，訊息直接呈現
     onError: (e) => toast.error(e.message),
+    // onSettled: 在請求完成後執行，無論成功或失敗
     // 失敗時也重新讀取：例如額滿是因為別人剛搶走名額，需要更新畫面上的人數。
     // 課表與成績單也列出本學期已選的課，一併失效，切換到那些頁面時才不會看到舊資料
     onSettled: () => invalidate("/api/sections", "/api/me/timetable", "/api/me/transcript"),

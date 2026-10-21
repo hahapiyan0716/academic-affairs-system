@@ -12,6 +12,7 @@ const NAV = [
 export default function StudentLayout({ children }: LayoutProps<"/student">) {
   return (
     <AppShell role="Student" nav={NAV}>
+      {/* 這裡的 children 是各個子頁面的內容 */}
       {children}
     </AppShell>
   );

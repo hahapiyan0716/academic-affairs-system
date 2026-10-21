@@ -26,10 +26,12 @@ export default function LoginPage() {
         method: "POST",
         json: { username, password },
       });
-      // next 由 proxy.ts 在導向登入頁時帶入
+      // next 由 proxy.ts 在導向登入頁時帶入，只含路徑、不含查詢字串：例如 /admin/users?page=2 會被轉成 /login?next=%2Fadmin%2Fusers
+      // get("next") 會自動解碼成 /admin/users；?page=2 已被捨棄，登入後只會回到 /admin/users
       const next = new URLSearchParams(window.location.search).get("next");
       const home = ROLE_HOME[user.role];
-      // 只接受自己角色底下的站內路徑，避免開放式重新導向（Open Redirect）
+      // 只接受自己角色底下的站內路徑，避免開放式重新導向（Open Redirect），如果 next 不合法就導回自己的首頁
+      // 例如 Student 進入 /login?next=/admin/users 會被導回 /student
       hardNavigate(next && next.startsWith(`${home}/`) ? next : home);
     } catch (err) {
       setError((err as Error).message);
@@ -66,12 +68,14 @@ export default function LoginPage() {
               <Input
                 id="password"
                 type="password"
-                autoComplete="current-password"
+                autoComplete="current-password"   // 讓瀏覽器自動填入密碼
+                placeholder="請輸入密碼"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
             </div>
+            {/* 如果有錯誤訊息，就顯示在密碼輸入框下方 */}
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting && <Loader2 className="animate-spin" />}
