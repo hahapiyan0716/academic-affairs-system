@@ -23,5 +23,7 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
         },
       }),
   );
+  // QueryClientProvider 是 Client Component；children 可包含 Server 與 Client Components。
+  // 包裹後，下層的 Client Components 可共用 QueryClient，使用 useQuery、useMutation 與查詢快取。
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }

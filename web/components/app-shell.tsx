@@ -21,7 +21,8 @@ export async function AppShell({
   // Next.js 16 的 cookies() 為非同步
   const user = await verifySession((await cookies()).get(AUTH_COOKIE)?.value);
   // proxy.ts 已先擋過一次；這裡再檢查，確保取得 user 後的畫面不會以錯誤身分渲染
-  if (!user || user.role !== role) redirect("/login");
+  if (!user || user.role !== role)
+    redirect("/login");
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -29,6 +30,7 @@ export async function AppShell({
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4">
           <div className="flex items-center gap-2 font-semibold">
+            {/* 代表學校的圖示 */}
             <GraduationCap className="size-5 text-primary" />
             <span className="hidden sm:inline">教務管理系統</span>
           </div>
