@@ -12,7 +12,9 @@ export interface NavItem {
 /** 頂部導覽列（Client Component：需要 usePathname 判斷目前所在頁面） */
 export function NavLinks({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
-  // 最長前綴者為目前所在頁（避免 /admin 與 /admin/users 同時被標示）
+  // 從符合目前網址的項目中，選擇 href 最長（最精確）的一個。
+  // 例如 pathname 是 /student/timetable 時，/student 與 /student/timetable 都符合；
+  // 最後選擇 /student/timetable，因此只標示「我的課表」，不會連「加退選」一起標示。
   const active = items
     .filter((i) => pathname === i.href || pathname.startsWith(`${i.href}/`))
     .sort((a, b) => b.href.length - a.href.length)[0]?.href;
