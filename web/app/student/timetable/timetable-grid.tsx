@@ -3,8 +3,8 @@
 import { WEEKDAYS } from "@/lib/labels";
 import type { Timetable, TimetableSlot } from "@/types";
 
-// 顯示星期一到星期六；星期日（7）的時段不會出現在格狀圖中
-const DAYS = [1, 2, 3, 4, 5, 6];
+// 顯示星期一到星期日（對應後端 weekday 1–7）
+const DAYS = [1, 2, 3, 4, 5, 6, 7];
 // 依班級在清單中的順序給予固定色系，同一門課在課表上顏色一致
 const PALETTE = [
   "bg-sky-100 text-sky-900 border-sky-200",
@@ -26,7 +26,8 @@ export default function TimetableGrid({ timetable }: { timetable: Timetable }) {
     PALETTE[timetable.sections.findIndex((s) => s.section_id === sectionId) % PALETTE.length];
 
   return (
-    <table className="w-full min-w-160 table-fixed border-collapse text-sm">
+    // min-w-185（740px）：7 天各約 99px，維持與 6 天版本相同的欄寬；更窄的螢幕由外層 overflow-x-auto 左右捲動
+    <table className="w-full min-w-185 table-fixed border-collapse text-sm">
       <thead>
         <tr>
           <th className="w-12 border-b p-2 text-muted-foreground">節</th>
