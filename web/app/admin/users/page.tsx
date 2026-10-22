@@ -22,11 +22,12 @@ import ResetPasswordDialog from "./reset-password-dialog";
 /** 帳號管理：依身分與帳號、代號、學號或姓名篩選，並可建立帳號、啟用／停用、調整學籍、重設密碼 */
 export default function UsersPage() {
   const [role, setRole] = useState<"" | Role>(""); // 空字串 = 全部身分
-  // 關鍵字搜尋
+  // q 綁定輸入框，每次輸入都會更新 state 並重新渲染；keyword 停止輸入 500ms 後才跟著更新，避免每個字都發請求
   const [q, setQ] = useState("");
   // 關鍵字停止輸入後才套用；身分是下拉選單，切換時立即生效
   const keyword = useDebouncedValue(q.trim());
-  // 篩選條件改變 → query key 改變 → 自動重新請求 -> 回傳搜尋結果；若 keyword 為空字串，則不帶 q 參數
+  // keyword／role 改變 → 重新渲染 → query key 改變 → 自動請求；回應更新 data 後再渲染一次，表格才換成新結果
+  // 單純重新渲染不一定發請求；query key 未改變時沿用同一查詢。keyword 為空字串時不帶 q 參數
   const { data, error, isPending } = useApiQuery<AdminUser[]>("/api/admin/users", { role, q: keyword });
   // 自己的密碼只能經由頂部的「修改密碼」變更（需驗證目前密碼），因此不在自己那一列顯示重設按鈕
   const { data: me } = useApiQuery<{ user: SessionUser }>("/api/auth/me");
@@ -148,6 +149,7 @@ export default function UsersPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       {me && me.user.sub !== String(u.user_id) && (
+                        // 將該列帳號存入 state 會觸發重新渲染，使頁面最下方的 resetting 條件成立並掛載對話框
                         <Button variant="ghost" size="sm" onClick={() => setResetting(u)}>
                           <KeyRound />
                           重設密碼
@@ -161,7 +163,8 @@ export default function UsersPage() {
           )}
         </CardContent>
       </Card>
-      {/* 關閉時卸載對話框，下次開啟時表單是空的 */}
+      {/* 寫在 JSX 最後只是元件樹的邏輯位置；DialogContent 透過 Portal 掛到頁面頂層，再以 fixed 定位置中，不會顯示在表格下方 */}
+      {/* resetting 為帳號物件時掛載；關閉時設回 null 並卸載，所以內部密碼 state 也會銷毀，下次開啟為空 */}
       {resetting && <ResetPasswordDialog user={resetting} onClose={() => setResetting(null)} />}
     </>
   );

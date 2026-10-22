@@ -63,7 +63,7 @@ export default function ResetPasswordDialog({ user, onClose }: { user: AdminUser
           <div className="grid gap-1.5">
             <Label htmlFor="reset-confirm">再次輸入新密碼</Label>
             <Input
-              id="reset-confirm"
+              id="reset-confirm"    // 意思是這個 input 的 id，Label 的 htmlFor 會對應到這個 id，點擊 Label 時會聚焦到對應的 input
               type="password"
               autoComplete="new-password"
               minLength={8}
