@@ -19,23 +19,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { api, useApiQuery, useInvalidate } from "@/lib/api";
 import type { Department, Role } from "@/types";
 
+const INITIAL_FORM = {
+  username: "",
+  password: "",
+  id: "",
+  name: "",
+  dept_id: "",
+  grade: "1",
+  class_code: "A",
+  degree: "0",
+};
+
 /** 「新增帳號」按鈕與對話框；依身分顯示不同的個人資料欄位 */
 export default function CreateUserDialog() {
-  // 判斷對話框是否開啟，若關閉則卸載本元件，表單不會殘留密碼
+  // 判斷對話框是否開啟，決定是否渲染本元件
+  // Dialog 關閉只會改變 open；外層 CreateUserDialog 仍掛載，因此 form state 不會自動清空
   const [open, setOpen] = useState(false);
   // 依身分顯示不同的個人資料欄位，初始為學生，因為大部分帳號都是學生
   const [role, setRole] = useState<Role>("Student");
   // 教師與學生共用 id、name 欄位，送出時再依身分對應成 teacher_id／student_id 等
-  const [form, setForm] = useState({
-    username: "",
-    password: "",
-    id: "",
-    name: "",
-    dept_id: "",
-    grade: "1",
-    class_code: "A",
-    degree: "0",
-  });
+  const [form, setForm] = useState(INITIAL_FORM);
   // 對話框開啟時才讀取系所清單
   const { data: depts } = useApiQuery<Department[]>(open ? "/api/admin/departments" : null);
   const invalidate = useInvalidate();
@@ -43,7 +46,9 @@ export default function CreateUserDialog() {
     mutationFn: (body: object) => api("/api/admin/users", { method: "POST", json: body }),
     onSuccess: () => {
       toast.success(`已建立帳號 ${form.username}`);
-      // 本對話框不會卸載，表單內容會保留到下次開啟
+      // Dialog 關閉不會卸載外層元件，建立成功後需主動重設，避免下次開啟時殘留帳號與密碼
+      setRole("Student");
+      setForm({ ...INITIAL_FORM });
       setOpen(false);
       // 新教師會出現在教師權限頁與合授教師選單；新學生會改變總覽的在學人數
       invalidate("/api/admin/users", "/api/admin/teachers", "/api/admin/stats", "/api/teachers");
@@ -73,7 +78,7 @@ export default function CreateUserDialog() {
                 degree: Number(form.degree),
               },
             }
-          : base;
+          : base;   // role === "Admin" ? base : base;
     create.mutate(body);
   }
 
