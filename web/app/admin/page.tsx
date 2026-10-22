@@ -8,6 +8,7 @@ import { semesterLabel } from "@/lib/labels";
 import type { Semester } from "@/types";
 
 // 對應後端 StatsOut；只有本頁使用，因此不放在 types.ts
+// 這個是管理員首頁的統計數字，包含系統帳號數、在學學生數、具開課權限教師數、啟用中課程數，以及目前學期資訊
 interface Stats {
   users: number;
   teachers_with_permission: number;
@@ -20,10 +21,13 @@ interface Stats {
 export default function AdminDashboard() {
   const { data, error, isPending } = useApiQuery<Stats>("/api/admin/stats");
 
-  if (isPending) return <LoadingState />;
-  if (error || !data) return <ErrorState message={error?.message ?? "無法載入資料"} />;
+  if (isPending)
+    return <LoadingState />;
+  if (error || !data)
+    return <ErrorState message={error?.message ?? "無法載入資料"} />;
 
-  // 上方四格統計卡片；icon 存的是元件本身，渲染時以 <t.icon /> 動態使用
+  // 建立上方「四張統計卡片」所需的資料陣列，方便之後用 .map() 統一渲染。
+  // icon 存的是元件本身，渲染時以 <t.icon /> 動態使用
   const tiles = [
     { label: "系統帳號", value: data.users, icon: Users },
     { label: "在學學生", value: data.enrolled_students, icon: Users },
@@ -39,6 +43,7 @@ export default function AdminDashboard() {
           <Card key={t.label}>
             <CardHeader className="pb-2">
               <CardDescription className="flex items-center gap-2">
+                {/* <t.icon /> 會依照目前的 t，動態變成對應的圖示元件，例如 Users、KeyRound、BookOpen 等(其實就是圖示) */}
                 <t.icon className="size-4" />
                 {t.label}
               </CardDescription>

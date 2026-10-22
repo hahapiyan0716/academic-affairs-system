@@ -21,7 +21,9 @@ import type { Department, Role } from "@/types";
 
 /** 「新增帳號」按鈕與對話框；依身分顯示不同的個人資料欄位 */
 export default function CreateUserDialog() {
+  // 判斷對話框是否開啟，若關閉則卸載本元件，表單不會殘留密碼
   const [open, setOpen] = useState(false);
+  // 依身分顯示不同的個人資料欄位，初始為學生，因為大部分帳號都是學生
   const [role, setRole] = useState<Role>("Student");
   // 教師與學生共用 id、name 欄位，送出時再依身分對應成 teacher_id／student_id 等
   const [form, setForm] = useState({

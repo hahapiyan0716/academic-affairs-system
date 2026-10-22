@@ -22,6 +22,7 @@ import ResetPasswordDialog from "./reset-password-dialog";
 /** 帳號管理：依身分與帳號、代號、學號或姓名篩選，並可建立帳號、啟用／停用、調整學籍、重設密碼 */
 export default function UsersPage() {
   const [role, setRole] = useState<"" | Role>(""); // 空字串 = 全部身分
+  // 關鍵字搜尋
   const [q, setQ] = useState("");
   // 關鍵字停止輸入後才套用；身分是下拉選單，切換時立即生效
   const keyword = useDebouncedValue(q.trim());
@@ -36,6 +37,7 @@ export default function UsersPage() {
   /** 啟用／停用登入（後端禁止停用自己） */
   const toggleActive = useMutation({
     mutationFn: (u: AdminUser) =>
+      // 送出 API 之後會再 Service 層檢查是否為自己，若是則回傳 400；前端不會顯示停用自己的按鈕
       api(`/api/admin/users/${u.user_id}`, { method: "PATCH", json: { is_active: !u.is_active } }),
     onSuccess: (_, u) => {
       toast.success(`${u.username} 已${u.is_active ? "停用" : "啟用"}`);
@@ -48,6 +50,8 @@ export default function UsersPage() {
   /** 變更學籍（休學、退學的學生不可選課） */
   const changeStudentStatus = useMutation({
     mutationFn: ({ studentId, status }: { studentId: string; status: string }) =>
+      // API 更改學籍狀態之後，學生的選課權限會立即生效（休學、退學的學生不可選課），因此不需要額外呼叫 /api/teachers 重新整理選單
+      // 學生之後在選課會根據學籍狀態被拒絕，或在課程頁面被隱藏
       api(`/api/admin/users/students/${studentId}/status`, { method: "PATCH", json: { status } }),
     onSuccess: (_, { status }) => {
       toast.success(`學籍已更新為「${STUDENT_STATUS[status]}」`);
@@ -64,6 +68,7 @@ export default function UsersPage() {
         {/* Select 的選項值不可為空字串，「全部」以 "all" 代表 */}
         <Select value={role || "all"} onValueChange={(v) => setRole(v === "all" ? "" : (v as Role))}>
           <SelectTrigger className="w-32">
+            {/* SelectValue 會顯示目前選取的值 */}
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
