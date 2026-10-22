@@ -63,33 +63,44 @@ export default function CreateUserDialog() {
     e.preventDefault();
     const base = { role, username: form.username, password: form.password };
     // 請求格式依 role 而不同（對應後端 UserCreateIn 的 discriminated union）；教師的系所為選填
-    const body =
-      role === "Teacher"
-        ? { ...base, profile: { teacher_id: form.id, teacher_name: form.name, dept_id: form.dept_id || null } }
-        : role === "Student"
-          ? {
-              ...base,
-              profile: {
-                student_id: form.id,
-                student_name: form.name,
-                dept_id: form.dept_id,
-                grade: Number(form.grade),
-                class_code: form.class_code,
-                degree: Number(form.degree),
-              },
-            }
-          : base;   // role === "Admin" ? base : base;
+    let body: object;
+
+    if (role === "Teacher") {
+      body = {
+        ...base,
+        profile: { teacher_id: form.id, teacher_name: form.name, dept_id: form.dept_id || null },
+      };
+    } else if (role === "Student") {
+      body = {
+        ...base,
+        profile: {
+          student_id: form.id,
+          student_name: form.name,
+          dept_id: form.dept_id,
+          grade: Number(form.grade),
+          class_code: form.class_code,
+          degree: Number(form.degree),
+        },
+      };
+    } else {
+      // role === "Admin"：管理員沒有額外的個人資料表，只需傳送帳號資訊；user_id 由資料庫自動產生
+      body = base;
+    }
+
     create.mutate(body);
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      {/* DialogTrigger 指定點擊後開啟對話框的觸發元件 */}
+      {/* asChild 不另外產生預設的 button，而是將觸發事件與屬性合併到子層 Button */}
       <DialogTrigger asChild>
         <Button>
           <Plus />
           新增帳號
         </Button>
       </DialogTrigger>
+      {/* DialogContent 是對話框的內容 */}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>新增帳號</DialogTitle>

@@ -26,7 +26,7 @@ export default function UsersPage() {
   const [q, setQ] = useState("");
   // 關鍵字停止輸入後才套用；身分是下拉選單，切換時立即生效
   const keyword = useDebouncedValue(q.trim());
-  // 篩選條件改變 → query key 改變 → 自動重新請求
+  // 篩選條件改變 → query key 改變 → 自動重新請求 -> 回傳搜尋結果；若 keyword 為空字串，則不帶 q 參數
   const { data, error, isPending } = useApiQuery<AdminUser[]>("/api/admin/users", { role, q: keyword });
   // 自己的密碼只能經由頂部的「修改密碼」變更（需驗證目前密碼），因此不在自己那一列顯示重設按鈕
   const { data: me } = useApiQuery<{ user: SessionUser }>("/api/auth/me");
