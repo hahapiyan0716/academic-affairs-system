@@ -30,7 +30,7 @@ export default function SemestersPage() {
     onSuccess: (_, { msg }) => {
       toast.success(msg);
       // 學期狀態與「目前學期」決定能否加退選、登分，以及各頁預設顯示的學期，影響範圍廣，全部失效
-      invalidate();
+      invalidate();   // 不傳路徑 = 全部查詢失效：畫面上使用中的立即重抓，其餘等下次用到時才重抓
     },
     onError: (e) => toast.error(e.message),
   });
@@ -66,6 +66,7 @@ export default function SemestersPage() {
         </Select>
         <span className="text-sm text-muted-foreground">學期</span>
         <Button onClick={() => create.mutate()} disabled={create.isPending}>
+          {/* + 的 icon */}
           <Plus />
           新增
         </Button>

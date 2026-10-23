@@ -28,7 +28,7 @@ export default function CourseDialog({
   onClose,
   onSaved,
 }: {
-  course: AdminCourse | null;
+  course: AdminCourse | null;     // 開新課程會是 null 是因為沒有課程資料，所以要用 EMPTY 來初始化表單
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -93,7 +93,7 @@ export default function CourseDialog({
                 required
                 minLength={5}
                 maxLength={5}
-                placeholder="A0008"
+                placeholder="例如：A0008"
               />
             </div>
             <div className="col-span-2 grid gap-1.5">

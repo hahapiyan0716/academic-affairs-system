@@ -16,6 +16,8 @@ import type { AdminCourse } from "@/types";
 import CourseDialog from "./course-dialog";
 
 /** 課程庫管理：列表、新增、編輯、停用／啟用 */
+// 與教師開課頁（/teacher/sections/new）的課程選單不同：該選單來自 GET /api/courses，只列出啟用中的課程
+// 管理員可以新增/編輯/啟用/停用課程，停用的課程不會出現在教師開課的課程選單中，但歷年紀錄仍然保留
 export default function CoursesPage() {
   const { data, error, isPending } = useApiQuery<AdminCourse[]>("/api/admin/courses");
   // 編輯中的課程："new" = 新增、物件 = 編輯該課程、null = 對話框關閉
@@ -36,6 +38,7 @@ export default function CoursesPage() {
   return (
     <>
       <PageHeader title="課程庫" description="維護課程代碼、課名與學分；停用的課程不能再開新班，但歷年紀錄會保留">
+        {/* 修改 editing 狀態為 "new"，表示要新增課程，同時會渲染出新增課程對話框 */}
         <Button onClick={() => setEditing("new")}>
           <Plus />
           新增課程
@@ -66,10 +69,12 @@ export default function CoursesPage() {
               </TableHeader>
               <TableBody>
                 {data?.map((c) => (
-                  <TableRow key={c.course_no} className={c.is_active ? "" : "opacity-60"}>
+                  // 停用的課程以半透明顯示
+                  <TableRow key={c.course_no} className={c.is_active ? "" : "opacity-50"}>
                     <TableCell className="font-mono">{c.course_no}</TableCell>
                     <TableCell className="font-medium">{c.course_name}</TableCell>
                     <TableCell>
+                      {/* variant 指定 Badge 外觀：必修用主色的 default、選修用較淡的 secondary（皆為 badge.tsx 內建選項） */}
                       <Badge variant={c.course_type === "Required" ? "default" : "secondary"}>
                         {COURSE_TYPE[c.course_type]}
                       </Badge>
@@ -85,12 +90,14 @@ export default function CoursesPage() {
                     <TableCell className="text-right tabular-nums">{c.section_count}</TableCell>
                     <TableCell className="text-right">
                       <Switch
-                        checked={c.is_active}
+                        checked={c.is_active}   // checked 代表開關的狀態，true = 啟用、false = 停用
                         disabled={toggleActive.isPending}
                         onCheckedChange={() => toggleActive.mutate(c)}
                       />
                     </TableCell>
                     <TableCell className="text-right">
+                      {/* 修改 editing 狀態為該課程物件，表示要編輯課程，同時會渲染出編輯課程對話框 */}
+                      {/* aria-label 是用來提供無障礙的提示文字 */}
                       <Button variant="ghost" size="icon-sm" onClick={() => setEditing(c)} aria-label="編輯">
                         <Pencil />
                       </Button>

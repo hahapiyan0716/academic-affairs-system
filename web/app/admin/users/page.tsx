@@ -67,6 +67,7 @@ export default function UsersPage() {
       <PageHeader title="帳號管理" description="建立帳號、停用登入、調整學生學籍狀態">
         <Input placeholder="搜尋帳號、代號、學號或姓名" value={q} onChange={(e) => setQ(e.target.value)} className="w-56" />
         {/* Select 的選項值不可為空字串，「全部」以 "all" 代表 */}
+        {/* value：目前選取的項目（由 role 狀態控制）；onValueChange 收到使用者新點選項目的值，存回 role 後成為 /api/admin/users 的 role 參數 */}
         <Select value={role || "all"} onValueChange={(v) => setRole(v === "all" ? "" : (v as Role))}>
           <SelectTrigger className="w-32">
             {/* SelectValue 會顯示目前選取的值 */}
